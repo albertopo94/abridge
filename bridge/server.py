@@ -38,6 +38,7 @@ from bridge.transform import (
     cache_thought_signature,
     OpenAIProtocolAdapter,
     cache_tool_name,
+    DUMMY_THOUGHT_SIGNATURE,
 )
 from bridge.dashboard import render_dashboard, get_status_data
 from bridge.i18n import parse_accept_language
@@ -115,6 +116,28 @@ _default_quota_provider: QuotaProvider | None = None
 _default_cursor_quota_provider: CursorQuotaProvider | None = None
 _default_cursor_backend: CursorBackend | None = None
 _default_opencode_backend: OpencodeBackend | None = None
+
+
+def _sanitize_thought_signatures(contents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sanitizes thought signatures in all turns to the official bypass sentinel."""
+    sanitized: list[dict[str, Any]] = []
+    for turn in contents:
+        parts = turn.get("parts")
+        if not isinstance(parts, list):
+            sanitized.append(turn)
+            continue
+        new_parts = []
+        for p in parts:
+            if isinstance(p, dict) and "thoughtSignature" in p:
+                p_copy = dict(p)
+                p_copy["thoughtSignature"] = DUMMY_THOUGHT_SIGNATURE
+                new_parts.append(p_copy)
+            else:
+                new_parts.append(p)
+        turn_copy = dict(turn)
+        turn_copy["parts"] = new_parts
+        sanitized.append(turn_copy)
+    return sanitized
 
 
 class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
@@ -968,11 +991,12 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
         max_retries = self.max_retries if self.context is None else self.context.max_retries
         initial_delay = self.initial_retry_delay if self.context is None else self.context.initial_retry_delay
 
+        current_contents = contents
         for attempt in range(max_retries + 1):
             stream_gen = None
             try:
                 stream_gen = self.client.stream_generate_content(
-                    self.project, model, contents, system_instruction, **kwargs
+                    self.project, model, current_contents, system_instruction, **kwargs
                 )
                 buffered_lines = self._prebuffer_stream(stream_gen)
                 return stream_gen, buffered_lines
@@ -984,9 +1008,12 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                     time.sleep(delay)
                     continue
                 raise
-            except Exception:
+            except Exception as exc:
                 if stream_gen is not None and hasattr(stream_gen, "close"):
                     stream_gen.close()
+                if "corrupted thought signature" in str(exc).lower() and current_contents is contents:
+                    current_contents = _sanitize_thought_signatures(contents)
+                    continue
                 raise
         raise BridgeError("Upstream call failed without response")
 

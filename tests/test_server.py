@@ -2633,6 +2633,40 @@ class TestUpstreamRetries(unittest.TestCase):
             self.assertEqual(mock_client.stream_generate_content.call_count, 1)
             self.assertEqual(mock_sleep.call_count, 0)
 
+    def test_execute_upstream_call_recovers_from_corrupted_thought_signature(self):
+        handler = OpenAIRequestHandler.__new__(OpenAIRequestHandler)
+        handler.project = "test-proj"
+        handler.max_retries = 3
+        handler.initial_retry_delay = 0.5
+        mock_client = MagicMock()
+        mock_client.stream_generate_content.side_effect = [
+            InvalidRequestError("Upstream 400 Bad Request: Corrupted thought signature."),
+            iter(['data: {"candidates": [{"content": {"parts": [{"text": "Recovered!"}]}}]}\n']),
+        ]
+        handler.client = mock_client
+
+        contents = [
+            {
+                "role": "model",
+                "parts": [
+                    {"thoughtSignature": "bad_stale_signature", "functionCall": {"name": "bash", "args": {}}}
+                ],
+            }
+        ]
+
+        stream_gen, buffered_lines = handler._execute_upstream_call(
+            model="gemini-4-argon-high",
+            contents=contents,
+        )
+
+        self.assertEqual(mock_client.stream_generate_content.call_count, 2)
+        second_call_contents = mock_client.stream_generate_content.call_args_list[1][0][2]
+        self.assertEqual(
+            second_call_contents[0]["parts"][0]["thoughtSignature"],
+            "context_engineering_is_the_way_to_go",
+        )
+        self.assertEqual(len(buffered_lines), 1)
+
 
 class TestServerErrorSanitization(unittest.TestCase):
     def test_get_error_details_known_and_unknown_errors(self):

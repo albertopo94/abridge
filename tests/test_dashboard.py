@@ -491,7 +491,7 @@ class TestDashboardRendering(unittest.TestCase):
         self.assertIn("https://github.com/openai/codex", html)
         self.assertIn("https://hermes-agent.nousresearch.com", html)
         self.assertIn("https://opencode.ai/docs", html)
-        self.assertIn("https://docs.openclaw.ai/gateway/config-tools/custom-providers", html)
+        self.assertIn("https://docs.openclaw.ai/", html)
         self.assertIn("https://pi.dev/docs/latest", html)
         self.assertIn("https://github.com/Gentleman-Programming/gentle-shell", html)
         self.assertIn("https://github.com/tashfeenahmed/freellmapi", html)
@@ -641,7 +641,7 @@ class TestDashboardRendering(unittest.TestCase):
             by_id["openclaw"]["manual_snippet"]("127.0.0.1:24980"),
             'BASE_URL=http://127.0.0.1:24980/v1\nAPI_KEY="$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)"',
         )
-        self.assertEqual(by_id["openclaw"]["docs_url"], "https://docs.openclaw.ai/gateway/config-tools/custom-providers")
+        self.assertEqual(by_id["openclaw"]["docs_url"], "https://docs.openclaw.ai/")
 
         self.assertIn('viewBox="0 0 24 24"', by_id["cursor"].get("icon_svg", ""))
         self.assertEqual(

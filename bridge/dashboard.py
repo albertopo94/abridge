@@ -612,7 +612,7 @@ CLIENT_CARDS: list[dict[str, Any]] = [
         ),
         "restore_cmd": lambda addr: "abridge restore-openclaw",
         "manual_snippet": lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'BASE_URL=http://{addr}/v1\nAPI_KEY="{api_key}"',
-        "docs_url": "https://docs.openclaw.ai/gateway/config-tools/custom-providers",
+        "docs_url": "https://docs.openclaw.ai/",
         "providers": _make_client_providers(
             "openclaw",
             lambda addr: (
@@ -622,7 +622,7 @@ CLIENT_CARDS: list[dict[str, Any]] = [
             ),
             lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'BASE_URL=http://{addr}/v1\nAPI_KEY="{api_key}"',
             lambda addr: "abridge restore-openclaw",
-            "https://docs.openclaw.ai/gateway/config-tools/custom-providers",
+            "https://docs.openclaw.ai/",
         ),
     },
     {

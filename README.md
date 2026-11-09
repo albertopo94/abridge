@@ -1,5 +1,9 @@
 # Abridge
 
+**Use the models you already have with the agents you already run** — no new accounts, no new bills, no dependencies.
+
+![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue) ![Zero dependencies](https://img.shields.io/badge/dependencies-zero-green) ![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey) ![macOS](https://img.shields.io/badge/platform-macOS-informational)
+
 Zero-dependency, pure Python 3 local AI gateway that bridges **Google Cloud Code Assist** (`daily-cloudcode-pa.googleapis.com`), local **Cursor CLI** (`agent`), and local **OpenCode CLI** to standard client protocols, providing native model access for **Claude Code**, **Codex CLI**, **Hermes Agent**, **OpenCode**, **OpenClaw**, **Cursor**, **Pi**, **Gentle Shell**, and **FreeLLMAPI**.
 
 > **Note on backwards compatibility:** Formerly known as `agy-model-bridge`. The `agy-bridge` command and `~/.agy-bridge` state directory remain fully functional as backwards-compatible aliases. Existing setups and running agents continue working seamlessly with zero downtime.

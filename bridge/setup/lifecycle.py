@@ -291,14 +291,18 @@ def update_installation(
                 if (default_dir / ".git").exists():
                     target_dir = default_dir
                     break
+
+        # Fallback: no persisted core dir found. Detect the repo root where the
+        # bridge package is installed (pip editable installs) or the current
+        # working directory, so `abridge update` works without a core dir.
+        if target_dir is None:
+            repo_root = Path(__file__).resolve().parents[2]
+            if (repo_root / ".git").exists():
+                target_dir = repo_root
+            elif (Path.cwd() / ".git").exists() and (Path.cwd() / "bridge").is_dir():
+                target_dir = Path.cwd()
             else:
-                repo_root = Path(__file__).resolve().parents[2]
-                if (repo_root / ".git").exists():
-                    target_dir = repo_root
-                elif (Path.cwd() / ".git").exists() and (Path.cwd() / "bridge").is_dir():
-                    target_dir = Path.cwd()
-                else:
-                    target_dir = default_dir
+                target_dir = default_dir
 
     if target_dir is None or not target_dir.exists() or not (target_dir / ".git").exists():
         return {

@@ -1982,6 +1982,36 @@ class TestUpdateInstallation(unittest.TestCase):
             text=True,
         )
 
+    @unittest.mock.patch("bridge.setup.subprocess.run")
+    def test_update_falls_back_to_editable_repo_root(self, mock_run):
+        """pip -e install: no core/.git in home, so update falls back to the repo root that
+        contains the bridge package. Regression for 'Directory is not a valid Git repository: .'."""
+        mock_run.return_value = unittest.mock.MagicMock(
+            returncode=0,
+            stdout="Already up to date.\n",
+            stderr="",
+        )
+        fake_home = Path(self.temp_dir.name) / "fake_home"
+        fake_home.mkdir(parents=True)
+        repo_root = Path(__file__).resolve().parents[1]
+
+        env_copy = os.environ.copy()
+        env_copy.pop("AGY_BRIDGE_STATE_DIR", None)
+        env_copy.pop("AGY_BRIDGE_CORE_DIR", None)
+        env_copy.pop("ABRIDGE_CORE_DIR", None)
+
+        with unittest.mock.patch.dict(os.environ, env_copy, clear=True):
+            with unittest.mock.patch("pathlib.Path.home", return_value=fake_home):
+                with unittest.mock.patch("bridge.setup.lifecycle.__file__", new=str(repo_root / "bridge" / "setup" / "lifecycle.py")):
+                    result = update_installation(core_dir=None)
+
+        self.assertEqual(result["status"], "already_up_to_date")
+        mock_run.assert_called_once_with(
+            ["git", "-C", str(repo_root), "pull", "--ff-only"],
+            capture_output=True,
+            text=True,
+        )
+
 
 class TestCLIUpdateAndVersion(unittest.TestCase):
     @unittest.mock.patch("bridge.__main__.update_installation")

@@ -27,3 +27,4 @@ Add JetBrains Junie CLI as a fourth upstream provider in Abridge, exposing its m
 - **L4** (2026-11-12, probe): `junie --acp true` initialize handshake confirmed — no authenticate step, image:true, standard ACP session capabilities.
 - **L5** (2026-11-12, implemented): T1-T6 closed. All 1219 tests pass (exit 0). Version bumped 0.36.3 → 0.37.0. Feature branch `feature/junie-upstream`.
 - **L6** (2026-11-12, commit): `d94560b` feat(junie): add JetBrains Junie CLI as fourth upstream — closed T1-T6. Slice 1928 lines (large cohesive feature, 1219 tests green). `junie-logo.svg` is a pre-existing untracked user asset, not part of this feature.
+- **L7** (2026-11-12, delivery): Added Junie client card with its logo — commit `041c862` (assets/junie-logo.svg moved from root, JUNIE_ICON_SVG + guide-only card, card_ids now 10). Merged feature branch to main, pushed main, tagged v0.37.0 (both pushed). `abridge update` now delivers Junie.

@@ -312,4 +312,4 @@ def junie_provider_models() -> list[tuple[str, str]]:
     return [(m, format_junie_model_display_name(m)) for m in sorted(JUNIE_KNOWN_MODELS)]
 
 
-DEFAULT_JUNIE_UPSTREAM_MODEL = "junie/gemini-3.7-flash"
+DEFAULT_JUNIE_UPSTREAM_MODEL = "junie/junie-lite"

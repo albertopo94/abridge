@@ -1075,12 +1075,14 @@ class TestDashboardBilingual(unittest.TestCase):
         self.assertIn('data-card="claude" data-provider="cursor"', html_en)
         self.assertIn('data-card="claude" data-provider="all"', html_en)
 
-        # Cursor tabs show free tier notice
+        # Cursor and Junie tabs show free tier notices
         self.assertIn("On Cursor's Free plan, only 'cursor/auto' is available", html_en)
+        self.assertIn("On Junie's Free tier (Lite-only access), only 'junie/junie-lite' is available", html_en)
 
         # Spanish translation
         html_es = render_dashboard("127.0.0.1", 24980, auth_status, models_count=10, lang="es")
         self.assertIn("En el plan Free de Cursor solo está disponible el modelo 'cursor/auto'", html_es)
+        self.assertIn("En el plan Free de Junie (acceso Lite-only), solo 'junie/junie-lite' está disponible", html_es)
         self.assertIn(">Todos</button>", html_es)
 
 

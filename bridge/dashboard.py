@@ -294,6 +294,9 @@ FREELLMAPI_ICON_SVG = (
 CURSOR_FREE_TIP_EN = "On Cursor's Free plan, only 'cursor/auto' is available due to Cursor restrictions (upgrade to Pro for named models)."
 CURSOR_FREE_TIP_ES = "En el plan Free de Cursor solo está disponible el modelo 'cursor/auto' por restricciones de Cursor (los modelos específicos requieren plan Pro)."
 
+JUNIE_FREE_TIP_EN = "On Junie's Free tier (Lite-only access), only 'junie/junie-lite' is available without JetBrains AI subscription or BYOK."
+JUNIE_FREE_TIP_ES = "En el plan Free de Junie (acceso Lite-only), solo 'junie/junie-lite' está disponible sin suscripción JetBrains AI o BYOK."
+
 
 def _make_client_providers(
     client_id: str,
@@ -362,10 +365,12 @@ def _make_client_providers(
                 "id": "junie",
                 "label_en": "Junie",
                 "label_es": "Junie",
+                "warning_tip_en": JUNIE_FREE_TIP_EN,
+                "warning_tip_es": JUNIE_FREE_TIP_ES,
                 "auto_cmd": lambda addr: (
-                    f"abridge setup-{client_id} --provider junie --model junie/gemini-3.7-flash --port {addr.rsplit(':', 1)[1]}"
+                    f"abridge setup-{client_id} --provider junie --model junie/junie-lite --port {addr.rsplit(':', 1)[1]}"
                     if ":" in addr and addr.rsplit(":", 1)[1].isdigit() and addr.rsplit(":", 1)[1] != "24980"
-                    else f"abridge setup-{client_id} --provider junie --model junie/gemini-3.7-flash"
+                    else f"abridge setup-{client_id} --provider junie --model junie/junie-lite"
                 ),
                 "manual_snippet": junie_snippet if junie_snippet is not None else agy_snippet,
                 "restore_cmd": lambda addr: f"abridge restore-{client_id} --provider junie",
@@ -492,7 +497,7 @@ CLIENT_CARDS: list[dict[str, Any]] = [
             "https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview",
             cursor_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="cursor/auto"',
             opencode_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="opencode/pulse-alpha-free"',
-            junie_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="junie/gemini-3.7-flash"',
+            junie_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="junie/junie-lite"',
         ),
     },
     {
@@ -574,7 +579,7 @@ CLIENT_CARDS: list[dict[str, Any]] = [
             ),
             junie_snippet=lambda addr, api_key='<YOUR_API_KEY>': (
                 f'# ~/.codex/config.toml\n'
-                f'model = "junie/gemini-3.7-flash"\n'
+                f'model = "junie/junie-lite"\n'
                 f'model_provider = "junie"\n'
                 f'model_context_window = 1048576\n'
                 f'model_auto_compact_token_limit = 943718\n\n'
@@ -1670,7 +1675,7 @@ def render_dashboard(
               <div class="skeleton-line" style="width: 45%;"></div>
             </div>
           </div>
-          <div id="junie-no-quota" class="quota-footnote" data-i18n="junie_no_quota_note">Junie does not expose a provider quota API. Models run on upstream provider pools and may be region-restricted; the bridge reports those errors verbatim.</div>
+          <div id="junie-no-quota" class="quota-footnote" data-i18n="junie_no_quota_note">Junie does not expose a quota API. Free tier accounts (Lite-only access) support 'junie/junie-lite'; other catalog models require a JetBrains AI plan or BYOK.</div>
         </div>
       </aside>
 
@@ -1750,7 +1755,8 @@ def render_dashboard(
         junie_status_missing: "Junie CLI not found",
         junie_free_models: "{{n}} models exposed",
         junie_version: "CLI v{{v}}",
-        junie_no_quota_note: "Junie does not expose a provider quota API. Models run on upstream provider pools and may be region-restricted; the bridge reports those errors verbatim.",
+        junie_no_quota_note: "Junie does not expose a quota API. Free tier accounts (Lite-only access) support 'junie/junie-lite'; other catalog models require a JetBrains AI plan or BYOK.",
+        tip_warning_junie_free: "On Junie's Free tier (Lite-only access), only 'junie/junie-lite' is available without JetBrains AI subscription or BYOK.",
         quota_group_gemini: "Gemini Models",
         quota_group_claude_gpt: "Claude and GPT models",
         quota_group_argon: "Gemini 4 Argon",
@@ -1824,7 +1830,8 @@ def render_dashboard(
         junie_status_missing: "No se encontró el CLI de Junie",
         junie_free_models: "{{n}} modelos expuestos",
         junie_version: "CLI v{{v}}",
-        junie_no_quota_note: "Junie no expone una API de cuota del proveedor. Los modelos corren en pools del proveedor y pueden estar restringidos por región; el bridge reporta esos errores tal cual.",
+        junie_no_quota_note: "Junie no expone una API de cuota. Las cuentas del plan Free (acceso Lite-only) admiten 'junie/junie-lite'; los demás modelos del catálogo requieren un plan JetBrains AI o BYOK.",
+        tip_warning_junie_free: "En el plan Free de Junie (acceso Lite-only), solo 'junie/junie-lite' está disponible sin suscripción JetBrains AI o BYOK.",
         quota_group_gemini: "Modelos Gemini",
         quota_group_claude_gpt: "Modelos Claude y GPT",
         quota_group_argon: "Gemini 4 Argon",
@@ -1909,6 +1916,8 @@ def render_dashboard(
           el.innerHTML = dict["tab_" + key.split("_").pop()];
         }} else if (key && key.indexOf("tip_warning_") === 0 && key.indexOf("_cursor") !== -1 && dict.tip_warning_cursor_free) {{
           el.innerHTML = "⚠️ " + dict.tip_warning_cursor_free;
+        }} else if (key && key.indexOf("tip_warning_") === 0 && key.indexOf("_junie") !== -1 && dict.tip_warning_junie_free) {{
+          el.innerHTML = "⚠️ " + dict.tip_warning_junie_free;
         }} else if (dict[key]) {{
           el.innerHTML = dict[key];
         }}

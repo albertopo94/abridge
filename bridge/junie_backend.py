@@ -39,7 +39,7 @@ import time
 from typing import Any
 
 JUNIE_PROVIDER_PREFIX = "junie/"
-DEFAULT_JUNIE_MODEL = "junie/gemini-3.7-flash"
+DEFAULT_JUNIE_MODEL = "junie/junie-lite"
 
 # Static fallback used when `junie list-models` is unavailable or slow, so the
 # catalog still advertises the models Junie is known to serve.

@@ -40,7 +40,7 @@ class TestModelIdPredicates(unittest.TestCase):
     def test_resolve_adds_provider_prefix(self) -> None:
         self.assertEqual(resolve_junie_model("junie/gemini-3.7-flash"), "junie/gemini-3.7-flash")
         self.assertEqual(resolve_junie_model("gemini-3.7-flash"), "junie/gemini-3.7-flash")
-        self.assertEqual(resolve_junie_model(""), "junie/gemini-3.7-flash")
+        self.assertEqual(resolve_junie_model(""), "junie/junie-lite")
 
     def test_junie_acp_model_id_strips_prefix(self) -> None:
         self.assertEqual(junie_acp_model_id("junie/grok-4.5"), "grok-4.5")

@@ -1500,7 +1500,7 @@ class TestUninstall(unittest.TestCase):
         core_dir.mkdir(parents=True, exist_ok=True)
         (core_dir / "bridge").mkdir(parents=True, exist_ok=True)
         (core_dir / "bridge" / "__init__.py").write_text("# core\n", encoding="utf-8")
-        (core_dir / ".agy-bridge-installed").write_text("v0.37.3\n", encoding="utf-8")
+        (core_dir / ".agy-bridge-installed").write_text("v0.37.4\n", encoding="utf-8")
 
         with unittest.mock.patch("bridge.daemon.stop_daemon", return_value={"status": "not_running"}):
             result = uninstall(
@@ -1679,7 +1679,7 @@ class TestUpdateInstallation(unittest.TestCase):
 
         self.assertEqual(result["status"], "updated")
         self.assertTrue(result["restarted_daemon"])
-        self.assertEqual(result["version"], "0.37.3")
+        self.assertEqual(result["version"], "0.37.4")
         mock_run.assert_called_once_with(
             ["git", "-C", str(self.repo_dir), "pull", "--ff-only"],
             capture_output=True,
@@ -1877,7 +1877,7 @@ class TestUpdateInstallation(unittest.TestCase):
         fetch_res = unittest.mock.MagicMock(returncode=0)
         tags_res = unittest.mock.MagicMock(
             returncode=0,
-            stdout="v0.37.3\nv0.27.1\n",
+            stdout="v0.37.4\nv0.27.1\n",
         )
         checkout_res = unittest.mock.MagicMock(
             returncode=0,
@@ -2120,12 +2120,12 @@ class TestCLIUpdateAndVersion(unittest.TestCase):
         from pathlib import Path
         import re
 
-        self.assertEqual(bridge.__version__, "0.37.3")
+        self.assertEqual(bridge.__version__, "0.37.4")
         pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
         pyproject_text = pyproject_path.read_text(encoding="utf-8")
         match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_text)
         self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), "0.37.3")
+        self.assertEqual(match.group(1), "0.37.4")
 
     def test_config_path_instantiation_and_backup_attribute(self):
         from bridge.setup.base import ConfigPath
@@ -2361,7 +2361,7 @@ class TestCodexConfiguratorStrategy(unittest.TestCase):
         target = self.dir_path / "config.toml"
         self.configurator.setup(config_path=target, provider="junie")
         content = target.read_text(encoding="utf-8")
-        self.assertIn('model = "junie/gemini-3.7-flash"', content)
+        self.assertIn('model = "junie/junie-lite"', content)
         self.assertIn('model_provider = "junie"', content)
         self.assertIn("[model_providers.junie]", content)
         self.assertIn("# agy:start", content)
@@ -2453,7 +2453,7 @@ class TestHermesConfiguratorStrategy(unittest.TestCase):
         target = self.dir_path / "config.yaml"
         self.configurator.setup(config_path=target, provider="junie")
         content = target.read_text(encoding="utf-8")
-        self.assertIn('default: "junie/gemini-3.7-flash"', content)
+        self.assertIn('default: "junie/junie-lite"', content)
         self.assertIn("# agy:start", content)
         self.assertIn("http://127.0.0.1:24980/v1", content)
 
@@ -3216,7 +3216,7 @@ class TestOpenClawConfigurator(unittest.TestCase):
         self.assertTrue(all(i.startswith("junie/") for i in ids), ids[:3])
         self.assertIn("junie/gemini-3.7-flash", ids)
         self.assertTrue(all("[Junie]" in m["name"] for m in provs["junie"]["models"]))
-        self.assertEqual(data["agents"]["defaults"]["model"]["primary"], "junie/gemini-3.7-flash")
+        self.assertEqual(data["agents"]["defaults"]["model"]["primary"], "junie/junie-lite")
 
     def test_default_config_path_precedence(self):
         # 1. OPENCLAW_CONFIG_PATH override
@@ -5499,7 +5499,7 @@ class TestInstallScript(unittest.TestCase):
         sentinel = self.state_dir / "core" / ".agy-bridge-installed"
         self.assertTrue(sentinel.exists())
         self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o600)
-        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.37.3")
+        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.37.4")
 
     def test_install_script_launcher_immune_to_cwd_hijacking(self):
         res = subprocess.run(

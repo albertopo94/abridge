@@ -25,7 +25,7 @@ Zero-dependency, pure Python 3 local AI gateway that bridges **Google Antigravit
   - Transparently routes `cursor/*` and exclusive Cursor models (`gpt-5.3-codex`, `composer-2.5`, `grok-4.7`, etc.) to Cursor while serving Google models (`gemini-*`, `claude-*`) via Antigravity.
   - On Cursor Free tier, defaults to `cursor/auto` with clear notices, while supporting named models on Pro/Business tiers.
   - **OpenCode Free Tier**: Exposes the free-tier models discovered from `opencode models` (ids ending in `-free`, e.g. `opencode/pulse-alpha-free`) with `[OpenCode]` display-name tags, executed through a pre-warmed `opencode acp` process with an `opencode run` fallback. Upstream region blocks (free pools run on third-party clouds) are reported as clear 403 errors naming the model instead of silent stream interruptions.
-  - **Junie CLI**: Exposes models discovered from `junie list-models` (e.g. `junie/gemini-3.7-flash`, `junie/grok-4.5`) with `[Junie]` display-name tags, executed through a pre-warmed `junie --acp true` process with a `junie --task` fallback. Region/availability failures are reported as clear errors naming the model instead of silent stream interruptions.
+  - **Junie CLI**: Exposes models discovered from `junie list-models` (e.g. `junie/junie-lite`, `junie/gemini-3.7-flash`, `junie/grok-4.5`) with `[Junie]` display-name tags, executed through a pre-warmed `junie --acp true` process with a `junie --task` fallback. On Junie Free tier (Lite-only access), defaults to `junie/junie-lite` with clear notices, while supporting named models on JetBrains AI plans or BYOK. Region/availability failures are reported as clear errors naming the model instead of silent stream interruptions.
 - **Built-in Setup CLI**: Native subcommands (`setup-claude`, `setup-codex`, `setup-hermes`, `setup-opencode`, `setup-openclaw`, `setup-cursor`, `setup-pi`, `setup-gentle-shell`) that surgically configure client environments with atomic writes, file permissions `0o600`, automatic timestamped backups, and multi-provider selection (`--provider agy|cursor|opencode|junie|all`).
 - **Automatic Local API Key Security**: Automatically generates a persistent random API key stored at `~/.abridge/api_key` (`0600` permissions; automatically adopts existing keys from `~/.agy-bridge/api_key`) to protect `/v1/*` gateway endpoints against cross-origin access.
 - **Multimodal Vision & Image Support**: Full end-to-end multimodal image translation across OpenAI (`image_url` base64 data URIs), Anthropic (`{"type": "image", "source": {"type": "base64", ...}}`), and Responses APIs directly to Google Antigravity `inlineData` parts and Cursor ACP prompt blocks. Vision-capable models (Gemini, Claude Sonnet/Opus, Cursor models) can inspect images and screenshots natively without 400 errors or text loss.
@@ -129,7 +129,7 @@ Each client setup card on the web dashboard provides tabs for one-click configur
 - **AGY**: Configures Google Antigravity models exclusively (`gemini-*`, `claude-*`).
 - **Cursor**: Configures local Cursor CLI models (`cursor/auto`, `cursor/gpt-5.3-codex`, etc.).
 - **OpenCode**: Configures local OpenCode CLI free-tier models (`opencode/*-free`).
-- **Junie**: Configures local JetBrains Junie CLI models (`junie/gemini-3.7-flash`, etc.).
+- **Junie**: Configures local JetBrains Junie CLI models (`junie/junie-lite` on Free tier, named models on Pro/BYOK).
 - **All / Todos**: Configures multiple model providers side-by-side in your tool's settings (via CLI flag: `--provider all`). In tools with model pickers (Claude Code, Pi, Gentle Shell, Codex), this allows you to seamlessly switch between Antigravity, Cursor, OpenCode, and Junie models on the fly without re-running setup commands.
 
 ### 3. Manage the Background Service
@@ -240,7 +240,7 @@ opencode
 
 ### 🎴 Junie
 
-Junie is exposed as a fourth upstream: its models appear as `junie/<id>` (e.g. `junie/gemini-3.7-flash`, `junie/grok-4.5`) on `/v1/models` and `/v1/chat/completions`, served through a pre-warmed `junie --acp true` process with a `junie --task` fallback. The dashboard shows a Junie availability card (left column, alongside Antigravity/Cursor/OpenCode) and each client gains a `Junie` provider tab. Use `--provider junie` on any client setup (`setup-claude`, `setup-pi`, `setup-openclaw`, etc.) to configure that client against Junie models.
+Junie is exposed as a fourth upstream: its models appear as `junie/<id>` (defaulting to `junie/junie-lite` on Free tier, with named models like `junie/gemini-3.7-flash` or `junie/grok-4.5` on Pro/BYOK) on `/v1/models` and `/v1/chat/completions`, served through a pre-warmed `junie --acp true` process with a `junie --task` fallback. The dashboard shows a Junie availability card (left column, alongside Antigravity/Cursor/OpenCode) and each client gains a `Junie` provider tab. Use `--provider junie` on any client setup (`setup-claude`, `setup-pi`, `setup-openclaw`, etc.) to configure that client against Junie models.
 
 ### 🎴 OpenClaw
 

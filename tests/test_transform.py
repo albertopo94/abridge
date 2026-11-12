@@ -1604,6 +1604,37 @@ class TestResolveModelAndThinking(unittest.TestCase):
         self.assertEqual(model_dis, "gemini-4-argon-high")
         self.assertIsNone(thinking_dis)
 
+    def test_gemini_4_hydrogen_tiers_and_aliases(self):
+        cases = [
+            ("gemini-4-hydrogen", "gemini-4-hydrogen-high", {"thinkingLevel": "HIGH"}),
+            ("gemini-4-hydrogen-xhigh", "gemini-4-hydrogen-xhigh", {"thinkingLevel": "XHIGH"}),
+            ("gemini-4-hydrogen-high", "gemini-4-hydrogen-high", {"thinkingLevel": "HIGH"}),
+            ("gemini-4-hydrogen-medium", "gemini-4-hydrogen-medium", {"thinkingLevel": "MEDIUM"}),
+            ("gemini-4-hydrogen-low", "gemini-4-hydrogen-low", {"thinkingLevel": "LOW"}),
+            ("hydrogen", "gemini-4-hydrogen-high", {"thinkingLevel": "HIGH"}),
+            ("hydrogen-xhigh", "gemini-4-hydrogen-xhigh", {"thinkingLevel": "XHIGH"}),
+            ("hydrogen-high", "gemini-4-hydrogen-high", {"thinkingLevel": "HIGH"}),
+            ("hydrogen-medium", "gemini-4-hydrogen-medium", {"thinkingLevel": "MEDIUM"}),
+            ("hydrogen-low", "gemini-4-hydrogen-low", {"thinkingLevel": "LOW"}),
+        ]
+        for raw_model, expected_model, expected_thinking in cases:
+            model, thinking = resolve_model_and_thinking(raw_model, {})
+            self.assertEqual(model, expected_model, f"Failed model resolution for {raw_model}")
+            self.assertEqual(thinking, expected_thinking, f"Failed thinking resolution for {raw_model}")
+
+        # Overrides with xhigh
+        model_ov, thinking_ov = resolve_model_and_thinking(
+            "gemini-4-hydrogen-high", {"reasoning_effort": "xhigh"}
+        )
+        self.assertEqual(model_ov, "gemini-4-hydrogen-high")
+        self.assertEqual(thinking_ov, {"thinkingLevel": "XHIGH"})
+
+        model_dis, thinking_dis = resolve_model_and_thinking(
+            "gemini-4-hydrogen", {"thinking": {"type": "disabled"}}
+        )
+        self.assertEqual(model_dis, "gemini-4-hydrogen-high")
+        self.assertIsNone(thinking_dis)
+
     def test_flash_high_model_resolves_to_tiered_high(self):
         model, thinking = resolve_model_and_thinking("gemini-3.8-flash-high", {})
         self.assertEqual(model, "gemini-3.8-flash-tiered")

@@ -469,6 +469,10 @@ class TestSetupClaude(unittest.TestCase):
         self.assertEqual(
             option_models,
             [
+                "gemini-4-hydrogen-xhigh",
+                "gemini-4-hydrogen-high",
+                "gemini-4-hydrogen-medium",
+                "gemini-4-hydrogen-low",
                 "gemini-4-argon-high",
                 "gemini-4-argon-medium",
                 "gemini-4-argon-low",
@@ -499,6 +503,10 @@ class TestSetupClaude(unittest.TestCase):
 
         models = [opt["model"] for opt in DEFAULT_CLAUDE_MODEL_PICKER_OPTIONS]
         expected_models = [
+            "gemini-4-hydrogen-xhigh",
+            "gemini-4-hydrogen-high",
+            "gemini-4-hydrogen-medium",
+            "gemini-4-hydrogen-low",
             "gemini-4-argon-high",
             "gemini-4-argon-medium",
             "gemini-4-argon-low",
@@ -522,6 +530,10 @@ class TestSetupClaude(unittest.TestCase):
             self.assertEqual(opt["behavesAs"], "claude-3-7-sonnet")
 
         label_map = {opt["model"]: opt["label"] for opt in DEFAULT_CLAUDE_MODEL_PICKER_OPTIONS}
+        self.assertEqual(label_map["gemini-4-hydrogen-xhigh"], "Gemini 4 Hydrogen · XHigh (AGY)")
+        self.assertEqual(label_map["gemini-4-hydrogen-high"], "Gemini 4 Hydrogen · High (AGY)")
+        self.assertEqual(label_map["gemini-4-hydrogen-medium"], "Gemini 4 Hydrogen · Medium (AGY)")
+        self.assertEqual(label_map["gemini-4-hydrogen-low"], "Gemini 4 Hydrogen · Low (AGY)")
         self.assertEqual(label_map["gemini-4-argon-high"], "Gemini 4 Argon · High (AGY)")
         self.assertEqual(label_map["gemini-4-argon-medium"], "Gemini 4 Argon · Medium (AGY)")
         self.assertEqual(label_map["gemini-4-argon-low"], "Gemini 4 Argon · Low (AGY)")
@@ -543,7 +555,7 @@ class TestSetupClaude(unittest.TestCase):
         options = data.get("modelPicker", {}).get("options", [])
         self.assertEqual(options[0]["model"], "my-special-model")
         self.assertIn("my-special-model", options[0]["label"])
-        self.assertEqual(options[1]["model"], "gemini-4-argon-high")
+        self.assertEqual(options[1]["model"], "gemini-4-hydrogen-xhigh")
 
     def test_surgical_merge_preserves_existing_keys_and_creates_backup(self):
         target = self.dir_path / "settings.json"
@@ -1500,7 +1512,7 @@ class TestUninstall(unittest.TestCase):
         core_dir.mkdir(parents=True, exist_ok=True)
         (core_dir / "bridge").mkdir(parents=True, exist_ok=True)
         (core_dir / "bridge" / "__init__.py").write_text("# core\n", encoding="utf-8")
-        (core_dir / ".agy-bridge-installed").write_text("v0.37.5\n", encoding="utf-8")
+        (core_dir / ".agy-bridge-installed").write_text("v0.38.0\n", encoding="utf-8")
 
         with unittest.mock.patch("bridge.daemon.stop_daemon", return_value={"status": "not_running"}):
             result = uninstall(
@@ -1679,7 +1691,7 @@ class TestUpdateInstallation(unittest.TestCase):
 
         self.assertEqual(result["status"], "updated")
         self.assertTrue(result["restarted_daemon"])
-        self.assertEqual(result["version"], "0.37.5")
+        self.assertEqual(result["version"], "0.38.0")
         mock_run.assert_called_once_with(
             ["git", "-C", str(self.repo_dir), "pull", "--ff-only"],
             capture_output=True,
@@ -1877,7 +1889,7 @@ class TestUpdateInstallation(unittest.TestCase):
         fetch_res = unittest.mock.MagicMock(returncode=0)
         tags_res = unittest.mock.MagicMock(
             returncode=0,
-            stdout="v0.37.5\nv0.27.1\n",
+            stdout="v0.38.0\nv0.27.1\n",
         )
         checkout_res = unittest.mock.MagicMock(
             returncode=0,
@@ -2120,12 +2132,12 @@ class TestCLIUpdateAndVersion(unittest.TestCase):
         from pathlib import Path
         import re
 
-        self.assertEqual(bridge.__version__, "0.37.5")
+        self.assertEqual(bridge.__version__, "0.38.0")
         pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
         pyproject_text = pyproject_path.read_text(encoding="utf-8")
         match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_text)
         self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), "0.37.5")
+        self.assertEqual(match.group(1), "0.38.0")
 
     def test_config_path_instantiation_and_backup_attribute(self):
         from bridge.setup.base import ConfigPath
@@ -3282,9 +3294,27 @@ class TestOpenClawConfigurator(unittest.TestCase):
         self.assertEqual(agy_provider["apiKey"], get_active_api_key())
         self.assertEqual(agy_provider["api"], "openai-completions")
         self.assertEqual(agy_provider["headers"], {"User-Agent": "openclaw"})
-        self.assertEqual(len(agy_provider["models"]), 9)
+        self.assertEqual(len(agy_provider["models"]), 11)
 
         expected_models = [
+            {
+                "id": "gemini-4-hydrogen-xhigh",
+                "name": "Gemini 4 Hydrogen (XHigh - AGY)",
+                "reasoning": True,
+                "input": ["text", "image"],
+                "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+                "contextWindow": 1048576,
+                "maxTokens": 65536,
+            },
+            {
+                "id": "gemini-4-hydrogen-high",
+                "name": "Gemini 4 Hydrogen (High - AGY)",
+                "reasoning": True,
+                "input": ["text", "image"],
+                "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+                "contextWindow": 1048576,
+                "maxTokens": 65536,
+            },
             {
                 "id": "gemini-3.8-flash-high",
                 "name": "Gemini 3.8 Flash (High)",
@@ -3924,8 +3954,12 @@ class TestPiConfigurator(unittest.TestCase):
         self.assertEqual(agy["headers"], {"User-Agent": "pi-coding-agent"})
 
         models = agy["models"]
-        self.assertEqual(len(models), 13)
+        self.assertEqual(len(models), 17)
         expected_ids = [
+            "gemini-4-hydrogen-xhigh",
+            "gemini-4-hydrogen-high",
+            "gemini-4-hydrogen-medium",
+            "gemini-4-hydrogen-low",
             "gemini-4-argon-high",
             "gemini-4-argon-medium",
             "gemini-4-argon-low",
@@ -3941,19 +3975,23 @@ class TestPiConfigurator(unittest.TestCase):
             "gemini-2.5-flash",
         ]
         self.assertEqual([m["id"] for m in models], expected_ids)
-        self.assertEqual(models[0]["name"], "Gemini 4 Argon (High - AGY)")
-        self.assertEqual(models[1]["name"], "Gemini 4 Argon (Medium - AGY)")
-        self.assertEqual(models[2]["name"], "Gemini 4 Argon (Low - AGY)")
-        self.assertEqual(models[3]["name"], "Gemini 3.8 Flash (High - AGY)")
-        self.assertEqual(models[4]["name"], "Gemini 3.8 (AGY)")
-        self.assertEqual(models[5]["name"], "Claude Sonnet 5.5 (High - AGY)")
-        self.assertEqual(models[6]["name"], "Claude Sonnet 5.5 (Medium - AGY)")
-        self.assertEqual(models[7]["name"], "Claude Sonnet 5.5 (Low - AGY)")
-        self.assertEqual(models[8]["name"], "Claude Opus 5.5 (High - AGY)")
-        self.assertEqual(models[9]["name"], "Claude Opus 5.5 (Medium - AGY)")
-        self.assertEqual(models[10]["name"], "Claude Opus 5.5 (Low - AGY)")
-        self.assertEqual(models[11]["name"], "Gemini 2.5 Pro (AGY)")
-        self.assertEqual(models[12]["name"], "Gemini 2.5 Flash (AGY)")
+        self.assertEqual(models[0]["name"], "Gemini 4 Hydrogen (XHigh - AGY)")
+        self.assertEqual(models[1]["name"], "Gemini 4 Hydrogen (High - AGY)")
+        self.assertEqual(models[2]["name"], "Gemini 4 Hydrogen (Medium - AGY)")
+        self.assertEqual(models[3]["name"], "Gemini 4 Hydrogen (Low - AGY)")
+        self.assertEqual(models[4]["name"], "Gemini 4 Argon (High - AGY)")
+        self.assertEqual(models[5]["name"], "Gemini 4 Argon (Medium - AGY)")
+        self.assertEqual(models[6]["name"], "Gemini 4 Argon (Low - AGY)")
+        self.assertEqual(models[7]["name"], "Gemini 3.8 Flash (High - AGY)")
+        self.assertEqual(models[8]["name"], "Gemini 3.8 (AGY)")
+        self.assertEqual(models[9]["name"], "Claude Sonnet 5.5 (High - AGY)")
+        self.assertEqual(models[10]["name"], "Claude Sonnet 5.5 (Medium - AGY)")
+        self.assertEqual(models[11]["name"], "Claude Sonnet 5.5 (Low - AGY)")
+        self.assertEqual(models[12]["name"], "Claude Opus 5.5 (High - AGY)")
+        self.assertEqual(models[13]["name"], "Claude Opus 5.5 (Medium - AGY)")
+        self.assertEqual(models[14]["name"], "Claude Opus 5.5 (Low - AGY)")
+        self.assertEqual(models[15]["name"], "Gemini 2.5 Pro (AGY)")
+        self.assertEqual(models[16]["name"], "Gemini 2.5 Flash (AGY)")
         for m in models:
             if m["id"] in ("gemini-2.5-pro", "gemini-2.5-flash"):
                 self.assertFalse(m["reasoning"])
@@ -4005,7 +4043,7 @@ class TestPiConfigurator(unittest.TestCase):
         target = self.dir_path / "models.json"
         res = self.configurator.setup(config_path=target)
         written = [m["id"] for m in json.loads(target.read_text())["providers"]["agy"]["models"]]
-        self.assertEqual(len(written), 13)
+        self.assertEqual(len(written), 17)
         self.assertFalse(res.availability_verified)
         self.assertEqual(res.skipped_models, [])
 
@@ -4628,8 +4666,12 @@ class TestGentleShellConfigurator(unittest.TestCase):
         self.assertEqual(agy["headers"], {"User-Agent": "gentle-shell"})
 
         models = agy["models"]
-        self.assertEqual(len(models), 13)
+        self.assertEqual(len(models), 17)
         expected_ids = [
+            "gemini-4-hydrogen-xhigh",
+            "gemini-4-hydrogen-high",
+            "gemini-4-hydrogen-medium",
+            "gemini-4-hydrogen-low",
             "gemini-4-argon-high",
             "gemini-4-argon-medium",
             "gemini-4-argon-low",
@@ -4645,19 +4687,23 @@ class TestGentleShellConfigurator(unittest.TestCase):
             "gemini-2.5-flash",
         ]
         self.assertEqual([m["id"] for m in models], expected_ids)
-        self.assertEqual(models[0]["name"], "Gemini 4 Argon (High - AGY)")
-        self.assertEqual(models[1]["name"], "Gemini 4 Argon (Medium - AGY)")
-        self.assertEqual(models[2]["name"], "Gemini 4 Argon (Low - AGY)")
-        self.assertEqual(models[3]["name"], "Gemini 3.8 Flash (High - AGY)")
-        self.assertEqual(models[4]["name"], "Gemini 3.8 (AGY)")
-        self.assertEqual(models[5]["name"], "Claude Sonnet 5.5 (High - AGY)")
-        self.assertEqual(models[6]["name"], "Claude Sonnet 5.5 (Medium - AGY)")
-        self.assertEqual(models[7]["name"], "Claude Sonnet 5.5 (Low - AGY)")
-        self.assertEqual(models[8]["name"], "Claude Opus 5.5 (High - AGY)")
-        self.assertEqual(models[9]["name"], "Claude Opus 5.5 (Medium - AGY)")
-        self.assertEqual(models[10]["name"], "Claude Opus 5.5 (Low - AGY)")
-        self.assertEqual(models[11]["name"], "Gemini 2.5 Pro (AGY)")
-        self.assertEqual(models[12]["name"], "Gemini 2.5 Flash (AGY)")
+        self.assertEqual(models[0]["name"], "Gemini 4 Hydrogen (XHigh - AGY)")
+        self.assertEqual(models[1]["name"], "Gemini 4 Hydrogen (High - AGY)")
+        self.assertEqual(models[2]["name"], "Gemini 4 Hydrogen (Medium - AGY)")
+        self.assertEqual(models[3]["name"], "Gemini 4 Hydrogen (Low - AGY)")
+        self.assertEqual(models[4]["name"], "Gemini 4 Argon (High - AGY)")
+        self.assertEqual(models[5]["name"], "Gemini 4 Argon (Medium - AGY)")
+        self.assertEqual(models[6]["name"], "Gemini 4 Argon (Low - AGY)")
+        self.assertEqual(models[7]["name"], "Gemini 3.8 Flash (High - AGY)")
+        self.assertEqual(models[8]["name"], "Gemini 3.8 (AGY)")
+        self.assertEqual(models[9]["name"], "Claude Sonnet 5.5 (High - AGY)")
+        self.assertEqual(models[10]["name"], "Claude Sonnet 5.5 (Medium - AGY)")
+        self.assertEqual(models[11]["name"], "Claude Sonnet 5.5 (Low - AGY)")
+        self.assertEqual(models[12]["name"], "Claude Opus 5.5 (High - AGY)")
+        self.assertEqual(models[13]["name"], "Claude Opus 5.5 (Medium - AGY)")
+        self.assertEqual(models[14]["name"], "Claude Opus 5.5 (Low - AGY)")
+        self.assertEqual(models[15]["name"], "Gemini 2.5 Pro (AGY)")
+        self.assertEqual(models[16]["name"], "Gemini 2.5 Flash (AGY)")
         for m in models:
             if m["id"] in ("gemini-2.5-pro", "gemini-2.5-flash"):
                 self.assertFalse(m["reasoning"])
@@ -5499,7 +5545,7 @@ class TestInstallScript(unittest.TestCase):
         sentinel = self.state_dir / "core" / ".agy-bridge-installed"
         self.assertTrue(sentinel.exists())
         self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o600)
-        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.37.5")
+        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.38.0")
 
     def test_install_script_launcher_immune_to_cwd_hijacking(self):
         res = subprocess.run(

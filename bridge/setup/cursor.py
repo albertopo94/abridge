@@ -42,6 +42,8 @@ class CursorConfigurator(ClientConfigurator):
         model_names = [model] + [
             m
             for m in (
+                "gemini-4-hydrogen-high",
+                "gemini-4-hydrogen-xhigh",
                 "gemini-4-argon-high",
                 "gemini-3.8-flash-high",
                 "claude-sonnet-5-5-high",

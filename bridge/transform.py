@@ -339,7 +339,9 @@ def build_thinking_config(model: str, payload: dict[str, Any]) -> dict[str, Any]
         effort_val = output_cfg.get("effort")
         if effort_val:
             effort_str = str(effort_val).strip().lower()
-            if effort_str in ("high", "xhigh", "max"):
+            if effort_str in ("xhigh", "max"):
+                output_effort = "XHIGH" if "hydrogen" in m else "HIGH"
+            elif effort_str == "high":
                 output_effort = "HIGH"
             elif effort_str == "medium":
                 output_effort = "MEDIUM"
@@ -419,7 +421,9 @@ def build_thinking_config(model: str, payload: dict[str, Any]) -> dict[str, Any]
             if m.startswith("claude-") or "claude" in m:
                 return {"thinkingLevel": "LOW"}
             return None
-        if effort in ("high", "xhigh", "max"):
+        if effort in ("xhigh", "max"):
+            return {"thinkingLevel": "XHIGH" if "hydrogen" in m else "HIGH"}
+        elif effort == "high":
             return {"thinkingLevel": "HIGH"}
         elif effort == "medium":
             return {"thinkingLevel": "MEDIUM"}
@@ -432,6 +436,8 @@ def build_thinking_config(model: str, payload: dict[str, Any]) -> dict[str, Any]
 
     # 2. Model suffix heuristics
     m = (model or "").lower()
+    if "-xhigh" in m:
+        return {"thinkingLevel": "XHIGH"}
     if "-high" in m:
         return {"thinkingLevel": "HIGH"}
     if "-medium" in m:
@@ -492,6 +498,17 @@ MODEL_TIER_TABLE: dict[str, tuple[str, str | None]] = {
     "argon-high": ("gemini-4-argon-high", "HIGH"),
     "argon-medium": ("gemini-4-argon-medium", "MEDIUM"),
     "argon-low": ("gemini-4-argon-low", "LOW"),
+    # Gemini 4 Hydrogen aliases
+    "gemini-4-hydrogen": ("gemini-4-hydrogen-high", "HIGH"),
+    "gemini-4-hydrogen-xhigh": ("gemini-4-hydrogen-xhigh", "XHIGH"),
+    "gemini-4-hydrogen-high": ("gemini-4-hydrogen-high", "HIGH"),
+    "gemini-4-hydrogen-medium": ("gemini-4-hydrogen-medium", "MEDIUM"),
+    "gemini-4-hydrogen-low": ("gemini-4-hydrogen-low", "LOW"),
+    "hydrogen": ("gemini-4-hydrogen-high", "HIGH"),
+    "hydrogen-xhigh": ("gemini-4-hydrogen-xhigh", "XHIGH"),
+    "hydrogen-high": ("gemini-4-hydrogen-high", "HIGH"),
+    "hydrogen-medium": ("gemini-4-hydrogen-medium", "MEDIUM"),
+    "hydrogen-low": ("gemini-4-hydrogen-low", "LOW"),
 }
 
 

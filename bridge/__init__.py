@@ -1,3 +1,3 @@
 """Abridge package."""
 
-__version__ = "0.37.5"
+__version__ = "0.38.0"

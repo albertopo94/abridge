@@ -44,6 +44,34 @@ DEFAULT_CURSOR_OPENCODE_MODELS: dict[str, Any] = {
 
 
 DEFAULT_AGY_OPENCODE_MODELS: dict[str, Any] = {
+                "gemini-4-hydrogen-xhigh": {
+                    "name": "Gemini 4 Hydrogen (XHigh)",
+                    "limit": {
+                        "context": 1048576,
+                        "output": 65536,
+                    },
+                },
+                "gemini-4-hydrogen-high": {
+                    "name": "Gemini 4 Hydrogen (High)",
+                    "limit": {
+                        "context": 1048576,
+                        "output": 65536,
+                    },
+                },
+                "gemini-4-hydrogen-medium": {
+                    "name": "Gemini 4 Hydrogen (Medium)",
+                    "limit": {
+                        "context": 1048576,
+                        "output": 65536,
+                    },
+                },
+                "gemini-4-hydrogen-low": {
+                    "name": "Gemini 4 Hydrogen (Low)",
+                    "limit": {
+                        "context": 1048576,
+                        "output": 65536,
+                    },
+                },
                 "gemini-4-argon-high": {
                     "name": "Gemini 4 Argon (High)",
                     "limit": {

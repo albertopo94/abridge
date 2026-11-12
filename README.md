@@ -31,7 +31,7 @@ Zero-dependency, pure Python 3 local AI gateway that bridges **Google Antigravit
 - **Multimodal Vision & Image Support**: Full end-to-end multimodal image translation across OpenAI (`image_url` base64 data URIs), Anthropic (`{"type": "image", "source": {"type": "base64", ...}}`), and Responses APIs directly to Google Antigravity `inlineData` parts and Cursor ACP prompt blocks. Vision-capable models (Gemini, Claude Sonnet/Opus, Cursor models) can inspect images and screenshots natively without 400 errors or text loss.
 - **macOS Keychain OAuth Integration**: Seamlessly extracts Google OAuth credentials (`service="gemini"`, `account="antigravity"`) and Cursor session JWTs (`service="cursor-access-token"`, `account="cursor-user"`) directly from macOS Keychain with thread-safe TTL caching.
 - **Antigravity & Cursor Model Quota Tracking**: Real-time quota monitoring on the dashboard and JSON endpoints (`GET /api/quota` and `GET /api/cursor/quota`). Displays visual usage bars and reset countdowns for Antigravity pools (Gemini and 3P) and Cursor buckets (`Cursor Models`, `Other Models`, `Plan`). `GET /api/opencode/status` reports OpenCode CLI availability, version, and exposed free model count (OpenCode exposes no provider quota API, so no limit bars are shown). `GET /api/junie/status` reports Junie CLI availability, version, and exposed model count (Junie exposes no provider quota API, so no limit bars are shown).
-- **Extended 300s HTTP Timeout & Deep Reasoning**: 300-second upstream timeout allows models with deep reasoning chains (`gemini-4-argon-high`, `gemini-3.8-flash-high`, `claude-opus-5-5-high`) to complete complex thinking steps without connection resets.
+- **Extended 300s HTTP Timeout & Deep Reasoning**: 300-second upstream timeout allows models with deep reasoning chains (`gemini-4-hydrogen-xhigh`, `gemini-4-hydrogen-high`, `gemini-4-argon-high`, `gemini-3.8-flash-high`, `claude-opus-5-5-high`) to complete complex thinking steps without connection resets.
 
 ---
 
@@ -178,18 +178,22 @@ claude
 
 #### Changing Models in Claude Code (`/model`)
 Typing `/model` inside Claude Code displays curated models ready to use:
-1. **Gemini 4 Argon · High (AGY)** (`gemini-4-argon-high`)
-2. **Gemini 4 Argon · Medium (AGY)** (`gemini-4-argon-medium`)
-3. **Gemini 4 Argon · Low (AGY)** (`gemini-4-argon-low`)
-4. **Gemini 3.8 Flash · High (AGY)** (`gemini-3.8-flash-high`) — *Default*
-5. **Claude Sonnet 5.5 · High (AGY)** (`claude-sonnet-5-5-high`)
-6. **Claude Sonnet 5.5 · Medium (AGY)** (`claude-sonnet-5-5-medium`)
-7. **Claude Sonnet 5.5 · Low (AGY)** (`claude-sonnet-5-5-low`)
-8. **Claude Opus 5.5 · High (AGY)** (`claude-opus-5-5-high`)
-9. **Claude Opus 5.5 · Medium (AGY)** (`claude-opus-5-5-medium`)
-10. **Claude Opus 5.5 · Low (AGY)** (`claude-opus-5-5-low`)
-11. **Gemini 2.5 Pro (AGY)** (`gemini-2.5-pro`)
-12. **Gemini 2.5 Flash (AGY)** (`gemini-2.5-flash`)
+1. **Gemini 4 Hydrogen · XHigh (AGY)** (`gemini-4-hydrogen-xhigh`)
+2. **Gemini 4 Hydrogen · High (AGY)** (`gemini-4-hydrogen-high`)
+3. **Gemini 4 Hydrogen · Medium (AGY)** (`gemini-4-hydrogen-medium`)
+4. **Gemini 4 Hydrogen · Low (AGY)** (`gemini-4-hydrogen-low`)
+5. **Gemini 4 Argon · High (AGY)** (`gemini-4-argon-high`)
+6. **Gemini 4 Argon · Medium (AGY)** (`gemini-4-argon-medium`)
+7. **Gemini 4 Argon · Low (AGY)** (`gemini-4-argon-low`)
+8. **Gemini 3.8 Flash · High (AGY)** (`gemini-3.8-flash-high`) — *Default*
+9. **Claude Sonnet 5.5 · High (AGY)** (`claude-sonnet-5-5-high`)
+10. **Claude Sonnet 5.5 · Medium (AGY)** (`claude-sonnet-5-5-medium`)
+11. **Claude Sonnet 5.5 · Low (AGY)** (`claude-sonnet-5-5-low`)
+12. **Claude Opus 5.5 · High (AGY)** (`claude-opus-5-5-high`)
+13. **Claude Opus 5.5 · Medium (AGY)** (`claude-opus-5-5-medium`)
+14. **Claude Opus 5.5 · Low (AGY)** (`claude-opus-5-5-low`)
+15. **Gemini 2.5 Pro (AGY)** (`gemini-2.5-pro`)
+16. **Gemini 2.5 Flash (AGY)** (`gemini-2.5-flash`)
 
 *(Alternative: set environment variables manually for a single session:)*
 ```bash
@@ -459,7 +463,7 @@ Execute the complete test suite:
 python3 -m unittest discover -s tests -v
 ```
 
-All 1219 tests run in ~3-4 seconds locally with zero external dependencies and zero network access.
+All 1220 tests run in ~3-4 seconds locally with zero external dependencies and zero network access.
 
 ### End-to-End Smoke Test
 

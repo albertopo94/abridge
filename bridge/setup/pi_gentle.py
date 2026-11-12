@@ -25,6 +25,38 @@ from bridge.setup.common import (
 
 DEFAULT_PI_AND_GENTLE_MODELS: list[dict[str, Any]] = [
     {
+        "id": "gemini-4-hydrogen-xhigh",
+        "name": "Gemini 4 Hydrogen (XHigh - AGY)",
+        "reasoning": True,
+        "input": ["text", "image"],
+        "contextWindow": 1048576,
+        "maxTokens": 65536,
+    },
+    {
+        "id": "gemini-4-hydrogen-high",
+        "name": "Gemini 4 Hydrogen (High - AGY)",
+        "reasoning": True,
+        "input": ["text", "image"],
+        "contextWindow": 1048576,
+        "maxTokens": 65536,
+    },
+    {
+        "id": "gemini-4-hydrogen-medium",
+        "name": "Gemini 4 Hydrogen (Medium - AGY)",
+        "reasoning": True,
+        "input": ["text", "image"],
+        "contextWindow": 1048576,
+        "maxTokens": 65536,
+    },
+    {
+        "id": "gemini-4-hydrogen-low",
+        "name": "Gemini 4 Hydrogen (Low - AGY)",
+        "reasoning": True,
+        "input": ["text", "image"],
+        "contextWindow": 1048576,
+        "maxTokens": 65536,
+    },
+    {
         "id": "gemini-4-argon-high",
         "name": "Gemini 4 Argon (High - AGY)",
         "reasoning": True,

@@ -21,7 +21,6 @@ from __future__ import annotations
 from bridge.errors import AuthenticationError, BridgeError, ForbiddenError, UpstreamTimeoutError
 from bridge.junie_acp import (
     JunieAcpClient,
-    extract_junie_error_message,
     find_junie_binary,
     is_junie_auth_error,
     is_junie_region_error,
@@ -298,7 +297,6 @@ class JunieBackend:
         timeout: float = 300.0,
     ) -> Iterator[str]:
         """Streams text deltas, preferring the warm ACP process with a CLI fallback."""
-        resolved = resolve_junie_model(model)
         raw_id = junie_acp_model_id(model)
 
         if self.use_acp:

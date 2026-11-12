@@ -240,6 +240,14 @@ OPENCODE_ICON_SVG = (
     '</svg>'
 )
 
+JUNIE_ICON_SVG = (
+    '<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 69 69" width="24" height="24" aria-hidden="true">'
+    '<path d="M46.0724 23.0702H68.9861V26.8861C68.9861 53.5886 57.5291 68.8525 26.9868 68.8525H23.168V45.9566H26.9868C40.3532 45.9566 46.0817 40.2327 46.0817 26.8768V23.0608L46.0724 23.0702Z" fill="#48E054"/>'
+    '<path d="M22.9997 23.0718H0.0859375V45.9677H22.9997V23.0718Z" fill="#48E054"/>'
+    '<path d="M45.9128 0.185181H22.999V23.081H45.9128V0.185181Z" fill="#48E054"/>'
+    '</svg>'
+)
+
 OPENCLAW_ICON_SVG = (
     '<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="#FF4D4D" aria-hidden="true">'
     '<g transform="translate(0 0) scale(0.2)">'
@@ -632,6 +640,22 @@ CLIENT_CARDS: list[dict[str, Any]] = [
             lambda addr: "abridge restore-opencode",
             "https://opencode.ai/docs",
         ),
+    },
+    {
+        "id": "junie",
+        "title": "Junie",
+        "desc": "JetBrains CLI coding agent; exposes its models as a bridge upstream.",
+        "desc_en": "JetBrains CLI coding agent; exposes its models as a bridge upstream.",
+        "desc_es": "Agente de codificación CLI de JetBrains; expone sus modelos como upstream del bridge.",
+        "icon_svg": JUNIE_ICON_SVG,
+        "auto_cmd": lambda addr: (
+            f"abridge setup-gentle-shell --provider junie --port {addr.rsplit(':', 1)[1]}"
+            if ":" in addr and addr.rsplit(":", 1)[1].isdigit() and addr.rsplit(":", 1)[1] != "24980"
+            else "abridge setup-gentle-shell --provider junie"
+        ),
+        "restore_cmd": lambda addr: "abridge restore-gentle-shell --provider junie",
+        "manual_snippet": lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'BASE_URL=http://{addr}/v1\nAPI_KEY="{api_key}"',
+        "docs_url": "https://junie.jetbrains.com/docs",
     },
     {
         "id": "openclaw",

@@ -506,7 +506,7 @@ class TestDashboardRendering(unittest.TestCase):
 
     def test_client_cards_schema(self):
         from bridge.dashboard import CLIENT_CARDS
-        self.assertEqual(len(CLIENT_CARDS), 9)
+        self.assertEqual(len(CLIENT_CARDS), 10)
         card_titles = [c["title"] for c in CLIENT_CARDS]
         self.assertIn("Claude Code", card_titles)
         self.assertIn("Codex CLI", card_titles)
@@ -519,7 +519,7 @@ class TestDashboardRendering(unittest.TestCase):
         self.assertIn("FreeLLMAPI", card_titles)
 
         card_ids = [c["id"] for c in CLIENT_CARDS]
-        self.assertEqual(card_ids, ["gentle-shell", "pi", "claude", "codex", "hermes", "opencode", "openclaw", "cursor", "freellmapi"])
+        self.assertEqual(card_ids, ["gentle-shell", "pi", "claude", "codex", "hermes", "opencode", "junie", "openclaw", "cursor", "freellmapi"])
 
         by_id = {c["id"]: c for c in CLIENT_CARDS}
         self.assertEqual(

@@ -642,22 +642,6 @@ CLIENT_CARDS: list[dict[str, Any]] = [
         ),
     },
     {
-        "id": "junie",
-        "title": "Junie",
-        "desc": "JetBrains CLI coding agent; exposes its models as a bridge upstream.",
-        "desc_en": "JetBrains CLI coding agent; exposes its models as a bridge upstream.",
-        "desc_es": "Agente de codificación CLI de JetBrains; expone sus modelos como upstream del bridge.",
-        "icon_svg": JUNIE_ICON_SVG,
-        "auto_cmd": lambda addr: (
-            f"abridge setup-gentle-shell --provider junie --port {addr.rsplit(':', 1)[1]}"
-            if ":" in addr and addr.rsplit(":", 1)[1].isdigit() and addr.rsplit(":", 1)[1] != "24980"
-            else "abridge setup-gentle-shell --provider junie"
-        ),
-        "restore_cmd": lambda addr: "abridge restore-gentle-shell --provider junie",
-        "manual_snippet": lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'BASE_URL=http://{addr}/v1\nAPI_KEY="{api_key}"',
-        "docs_url": "https://junie.jetbrains.com/docs",
-    },
-    {
         "id": "openclaw",
         "title": "OpenClaw",
         "desc": "An always-on personal assistant that answers on WhatsApp, Telegram, Discord, and more from your own machine.",
@@ -1654,7 +1638,7 @@ def render_dashboard(
         <div id="junie-quota-card" class="quota-card" style="display: none;">
           <div class="quota-header">
             <div class="quota-title-row">
-              {OPENCODE_ICON_SVG}
+              {JUNIE_ICON_SVG}
               <div class="quota-title-text">
                 <span class="quota-title" data-i18n="junie_tab_title">Junie</span>
                 <span id="junie-quota-subtitle" class="quota-subtitle" data-i18n="quota_loading">{quota_loading_text}</span>

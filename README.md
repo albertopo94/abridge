@@ -240,11 +240,7 @@ opencode
 
 ### 🎴 Junie
 
-Run the automated setup:
-```bash
-abridge setup-gentle-shell --provider junie
-```
-Junie is exposed as a fourth upstream: its models appear as `junie/<id>` (e.g. `junie/gemini-3.7-flash`, `junie/grok-4.5`) on `/v1/models` and `/v1/chat/completions`, served through a pre-warmed `junie --acp true` process with a `junie --task` fallback. Use `--provider junie` on any client setup (`setup-claude`, `setup-pi`, `setup-openclaw`, etc.) to configure that client against Junie models.
+Junie is exposed as a fourth upstream: its models appear as `junie/<id>` (e.g. `junie/gemini-3.7-flash`, `junie/grok-4.5`) on `/v1/models` and `/v1/chat/completions`, served through a pre-warmed `junie --acp true` process with a `junie --task` fallback. The dashboard shows a Junie availability card (left column, alongside Antigravity/Cursor/OpenCode) and each client gains a `Junie` provider tab. Use `--provider junie` on any client setup (`setup-claude`, `setup-pi`, `setup-openclaw`, etc.) to configure that client against Junie models.
 
 ### 🎴 OpenClaw
 

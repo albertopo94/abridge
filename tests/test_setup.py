@@ -1500,7 +1500,7 @@ class TestUninstall(unittest.TestCase):
         core_dir.mkdir(parents=True, exist_ok=True)
         (core_dir / "bridge").mkdir(parents=True, exist_ok=True)
         (core_dir / "bridge" / "__init__.py").write_text("# core\n", encoding="utf-8")
-        (core_dir / ".agy-bridge-installed").write_text("v0.36.3\n", encoding="utf-8")
+        (core_dir / ".agy-bridge-installed").write_text("v0.37.0\n", encoding="utf-8")
 
         with unittest.mock.patch("bridge.daemon.stop_daemon", return_value={"status": "not_running"}):
             result = uninstall(
@@ -1679,7 +1679,7 @@ class TestUpdateInstallation(unittest.TestCase):
 
         self.assertEqual(result["status"], "updated")
         self.assertTrue(result["restarted_daemon"])
-        self.assertEqual(result["version"], "0.36.3")
+        self.assertEqual(result["version"], "0.37.0")
         mock_run.assert_called_once_with(
             ["git", "-C", str(self.repo_dir), "pull", "--ff-only"],
             capture_output=True,
@@ -1877,7 +1877,7 @@ class TestUpdateInstallation(unittest.TestCase):
         fetch_res = unittest.mock.MagicMock(returncode=0)
         tags_res = unittest.mock.MagicMock(
             returncode=0,
-            stdout="v0.36.3\nv0.27.1\n",
+            stdout="v0.37.0\nv0.27.1\n",
         )
         checkout_res = unittest.mock.MagicMock(
             returncode=0,
@@ -2120,12 +2120,12 @@ class TestCLIUpdateAndVersion(unittest.TestCase):
         from pathlib import Path
         import re
 
-        self.assertEqual(bridge.__version__, "0.36.3")
+        self.assertEqual(bridge.__version__, "0.37.0")
         pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
         pyproject_text = pyproject_path.read_text(encoding="utf-8")
         match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_text)
         self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), "0.36.3")
+        self.assertEqual(match.group(1), "0.37.0")
 
     def test_config_path_instantiation_and_backup_attribute(self):
         from bridge.setup.base import ConfigPath
@@ -2249,6 +2249,20 @@ class TestClaudeConfiguratorStrategy(unittest.TestCase):
         self.assertTrue(any("[OpenCode]" in o["label"] for o in opts), [o["label"] for o in opts][:3])
         self.assertIn("opencode/pulse-alpha-free", models)
 
+    def test_setup_provider_junie_writes_junie_models(self):
+        """RED (T5/S3): --provider junie configura el cliente contra modelos junie/*."""
+        target = self.dir_path / "settings.json"
+        self.configurator.setup(config_path=target, provider="junie")
+        data = json.loads(target.read_text(encoding="utf-8"))
+        env = data["env"]
+        self.assertTrue(env["ANTHROPIC_MODEL"].startswith("junie/"), env["ANTHROPIC_MODEL"])
+        self.assertTrue(env["ANTHROPIC_BASE_URL"].startswith("http://127.0.0.1"))
+        opts = data["modelPicker"]["options"]
+        models = [o["model"] for o in opts]
+        self.assertTrue(all(m.startswith("junie/") for m in models), models)
+        self.assertTrue(any("[Junie]" in o["label"] for o in opts), [o["label"] for o in opts][:3])
+        self.assertIn("junie/gemini-3.7-flash", models)
+
     def test_paths(self):
         with unittest.mock.patch("pathlib.Path.home", return_value=self.dir_path):
             self.assertEqual(
@@ -2342,6 +2356,17 @@ class TestCodexConfiguratorStrategy(unittest.TestCase):
         self.assertIn("# agy:start", content)
         self.assertIn("http://127.0.0.1:24980/v1", content)
 
+    def test_setup_provider_junie_writes_junie_block(self):
+        """RED (T5/S3): --provider junie escribe bloque con model junie/* y provider junie."""
+        target = self.dir_path / "config.toml"
+        self.configurator.setup(config_path=target, provider="junie")
+        content = target.read_text(encoding="utf-8")
+        self.assertIn('model = "junie/gemini-3.7-flash"', content)
+        self.assertIn('model_provider = "junie"', content)
+        self.assertIn("[model_providers.junie]", content)
+        self.assertIn("# agy:start", content)
+        self.assertIn("http://127.0.0.1:24980/v1", content)
+
     def test_paths(self):
         with unittest.mock.patch("pathlib.Path.home", return_value=self.dir_path):
             self.assertEqual(
@@ -2420,6 +2445,15 @@ class TestHermesConfiguratorStrategy(unittest.TestCase):
         self.configurator.setup(config_path=target, provider="opencode")
         content = target.read_text(encoding="utf-8")
         self.assertIn('default: "opencode/pulse-alpha-free"', content)
+        self.assertIn("# agy:start", content)
+        self.assertIn("http://127.0.0.1:24980/v1", content)
+
+    def test_setup_provider_junie_default_model(self):
+        """RED (T5/S3): --provider junie pone default junie/* en el bloque hermes."""
+        target = self.dir_path / "config.yaml"
+        self.configurator.setup(config_path=target, provider="junie")
+        content = target.read_text(encoding="utf-8")
+        self.assertIn('default: "junie/gemini-3.7-flash"', content)
         self.assertIn("# agy:start", content)
         self.assertIn("http://127.0.0.1:24980/v1", content)
 
@@ -3169,6 +3203,21 @@ class TestOpenClawConfigurator(unittest.TestCase):
         self.assertTrue(all("[OpenCode]" in m["name"] for m in provs["opencode"]["models"]))
         self.assertEqual(data["agents"]["defaults"]["model"]["primary"], "opencode/pulse-alpha-free")
 
+    def test_setup_provider_junie_writes_junie_provider(self):
+        """RED (T5/S3): OpenClaw --provider junie crea providers.junie con modelos junie/*."""
+        target = self.dir_path / "openclaw.json"
+        self.configurator.setup(config_path=target, provider="junie")
+        data = json.loads(target.read_text(encoding="utf-8"))
+        provs = data["models"]["providers"]
+        self.assertIn("junie", provs)
+        self.assertNotIn("agy", provs)
+        self.assertNotIn("cursor", provs)
+        ids = [m["id"] for m in provs["junie"]["models"]]
+        self.assertTrue(all(i.startswith("junie/") for i in ids), ids[:3])
+        self.assertIn("junie/gemini-3.7-flash", ids)
+        self.assertTrue(all("[Junie]" in m["name"] for m in provs["junie"]["models"]))
+        self.assertEqual(data["agents"]["defaults"]["model"]["primary"], "junie/gemini-3.7-flash")
+
     def test_default_config_path_precedence(self):
         # 1. OPENCLAW_CONFIG_PATH override
         custom_path = self.dir_path / "custom" / "custom_openclaw.json"
@@ -3775,6 +3824,20 @@ class TestPiConfigurator(unittest.TestCase):
         self.assertTrue(all(i.startswith("opencode/") for i in ids), ids[:3])
         self.assertIn("opencode/pulse-alpha-free", ids)
         self.assertTrue(all("[OpenCode]" in m["name"] for m in provs["opencode"]["models"]))
+
+    def test_setup_provider_junie_writes_junie_provider(self):
+        """RED (T5/S3): --provider junie crea providers.junie con modelos junie/*."""
+        target = self.dir_path / "models.json"
+        self.configurator.setup(config_path=target, provider="junie")
+        data = json.loads(target.read_text(encoding="utf-8"))
+        provs = data["providers"]
+        self.assertIn("junie", provs)
+        self.assertNotIn("agy", provs)
+        self.assertNotIn("cursor", provs)
+        ids = [m["id"] for m in provs["junie"]["models"]]
+        self.assertTrue(all(i.startswith("junie/") for i in ids), ids[:3])
+        self.assertIn("junie/gemini-3.7-flash", ids)
+        self.assertTrue(all("[Junie]" in m["name"] for m in provs["junie"]["models"]))
 
     def test_properties(self):
         self.assertEqual(self.configurator.name, "pi")
@@ -4465,6 +4528,20 @@ class TestGentleShellConfigurator(unittest.TestCase):
         self.assertTrue(all(i.startswith("opencode/") for i in ids), ids[:3])
         self.assertIn("opencode/pulse-alpha-free", ids)
         self.assertTrue(all("[OpenCode]" in m["name"] for m in provs["opencode"]["models"]))
+
+    def test_setup_provider_junie_writes_junie_provider(self):
+        """RED (T5/S3): GentleShell --provider junie crea providers.junie con modelos junie/*."""
+        target = self.dir_path / "models.json"
+        self.configurator.setup(config_path=target, provider="junie")
+        data = json.loads(target.read_text(encoding="utf-8"))
+        provs = data["providers"]
+        self.assertIn("junie", provs)
+        self.assertNotIn("agy", provs)
+        self.assertNotIn("cursor", provs)
+        ids = [m["id"] for m in provs["junie"]["models"]]
+        self.assertTrue(all(i.startswith("junie/") for i in ids), ids[:3])
+        self.assertIn("junie/gemini-3.7-flash", ids)
+        self.assertTrue(all("[Junie]" in m["name"] for m in provs["junie"]["models"]))
 
     def test_properties(self):
         self.assertEqual(self.configurator.name, "gentle-shell")
@@ -5422,7 +5499,7 @@ class TestInstallScript(unittest.TestCase):
         sentinel = self.state_dir / "core" / ".agy-bridge-installed"
         self.assertTrue(sentinel.exists())
         self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o600)
-        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.36.3")
+        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.37.0")
 
     def test_install_script_launcher_immune_to_cwd_hijacking(self):
         res = subprocess.run(

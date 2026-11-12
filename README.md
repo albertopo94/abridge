@@ -4,7 +4,7 @@
 
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue) ![Zero dependencies](https://img.shields.io/badge/dependencies-zero-green) ![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey) ![macOS](https://img.shields.io/badge/platform-macOS-informational)
 
-Zero-dependency, pure Python 3 local AI gateway that bridges **Google Antigravity**, local **Cursor CLI** (`agent`), and local **OpenCode CLI** to standard client protocols, providing native model access for **Claude Code**, **Codex CLI**, **Hermes Agent**, **OpenCode**, **OpenClaw**, **Cursor**, **Pi**, **Gentle Shell**, and **FreeLLMAPI**.
+Zero-dependency, pure Python 3 local AI gateway that bridges **Google Antigravity**, local **Cursor CLI** (`agent`), local **OpenCode CLI**, and local **JetBrains Junie CLI** (`junie`) to standard client protocols, providing native model access for **Claude Code**, **Codex CLI**, **Hermes Agent**, **OpenCode**, **OpenClaw**, **Cursor**, **Pi**, **Gentle Shell**, and **FreeLLMAPI**.
 
 > **Note on backwards compatibility:** Formerly known as `agy-model-bridge`. The `agy-bridge` command and `~/.agy-bridge` state directory remain fully functional as backwards-compatible aliases. Existing setups and running agents continue working seamlessly with zero downtime.
 
@@ -14,22 +14,23 @@ Zero-dependency, pure Python 3 local AI gateway that bridges **Google Antigravit
 
 - **Zero External Dependencies**: Built entirely using the Python 3 standard library (`http.server`, `urllib.request`, `subprocess`, `json`, `base64`, `threading`, `time`). No `pip install`, no virtual environment, no Node.js required.
 - **Multi-Protocol Gateway**:
-  - `GET /` — Self-contained dark-mode dashboard (Geist/Vercel styling) with upstream-verified Google auth badges, model count, real-time Antigravity & Cursor quota cards plus an OpenCode availability tab, and one-click copyable multi-provider setup cards.
-  - `GET /v1/models` — Dynamic model catalog discovered directly from upstream Antigravity, Cursor CLI (`agent models`), and OpenCode CLI (`opencode models`, free tier) with Codex serde compatibility (`data`, `models`, `slug`, `display_name`).
+  - `GET /` — Self-contained dark-mode dashboard (Geist/Vercel styling) with upstream-verified Google auth badges, model count, real-time Antigravity & Cursor quota cards plus OpenCode and Junie availability tabs, and one-click copyable multi-provider setup cards.
+  - `GET /v1/models` — Dynamic model catalog discovered directly from upstream Antigravity, Cursor CLI (`agent models`), OpenCode CLI (`opencode models`, free tier), and Junie CLI (`junie list-models`) with Codex serde compatibility (`data`, `models`, `slug`, `display_name`).
   - `POST /v1/chat/completions` — OpenAI Chat Completions API with full streaming (SSE `text/event-stream`) and non-streaming support (for FreeLLMAPI, Hermes Agent, OpenCode, OpenClaw, Cursor, Pi, Gentle Shell, Aider). Routes models automatically to Antigravity or Cursor.
   - `POST /v1/responses` — OpenAI Responses API shim for Codex CLI (`wire_api = "responses"`).
   - `POST /v1/messages` — Anthropic Messages API shim with dynamic SSE stream mapping (`thinking_delta`, `text_delta`, `tool_use`, `input_json_delta`), recursive OpenAPI 3.0 schema sanitization, and full tool calling for Claude Code CLI across both Antigravity and Cursor models.
-- **Multi-Provider Upstream Gateway (Antigravity, Cursor & OpenCode)**:
-  - Bridges **Google Antigravity**, local **Cursor CLI**, and local **OpenCode CLI** into a unified local gateway.
+- **Multi-Provider Upstream Gateway (Antigravity, Cursor, OpenCode & Junie)**:
+  - Bridges **Google Antigravity**, local **Cursor CLI**, local **OpenCode CLI**, and local **JetBrains Junie CLI** into a unified local gateway.
   - **Instant Agent Client Protocol (ACP) Streaming**: Integrates Cursor's official `agent acp` server mode over stdio JSON-RPC 2.0, keeping a warm background process alive. This eliminates the 20-40s cold start overhead of standalone CLI calls, delivering responses in **1-3 seconds** (10-20x speedup).
   - Transparently routes `cursor/*` and exclusive Cursor models (`gpt-5.3-codex`, `composer-2.5`, `grok-4.7`, etc.) to Cursor while serving Google models (`gemini-*`, `claude-*`) via Antigravity.
   - On Cursor Free tier, defaults to `cursor/auto` with clear notices, while supporting named models on Pro/Business tiers.
   - **OpenCode Free Tier**: Exposes the free-tier models discovered from `opencode models` (ids ending in `-free`, e.g. `opencode/pulse-alpha-free`) with `[OpenCode]` display-name tags, executed through a pre-warmed `opencode acp` process with an `opencode run` fallback. Upstream region blocks (free pools run on third-party clouds) are reported as clear 403 errors naming the model instead of silent stream interruptions.
-- **Built-in Setup CLI**: Native subcommands (`setup-claude`, `setup-codex`, `setup-hermes`, `setup-opencode`, `setup-openclaw`, `setup-cursor`, `setup-pi`, `setup-gentle-shell`) that surgically configure client environments with atomic writes, file permissions `0o600`, automatic timestamped backups, and multi-provider selection (`--provider agy|cursor|opencode|all`).
+  - **Junie CLI**: Exposes models discovered from `junie list-models` (e.g. `junie/gemini-3.7-flash`, `junie/grok-4.5`) with `[Junie]` display-name tags, executed through a pre-warmed `junie --acp true` process with a `junie --task` fallback. Region/availability failures are reported as clear errors naming the model instead of silent stream interruptions.
+- **Built-in Setup CLI**: Native subcommands (`setup-claude`, `setup-codex`, `setup-hermes`, `setup-opencode`, `setup-openclaw`, `setup-cursor`, `setup-pi`, `setup-gentle-shell`) that surgically configure client environments with atomic writes, file permissions `0o600`, automatic timestamped backups, and multi-provider selection (`--provider agy|cursor|opencode|junie|all`).
 - **Automatic Local API Key Security**: Automatically generates a persistent random API key stored at `~/.abridge/api_key` (`0600` permissions; automatically adopts existing keys from `~/.agy-bridge/api_key`) to protect `/v1/*` gateway endpoints against cross-origin access.
 - **Multimodal Vision & Image Support**: Full end-to-end multimodal image translation across OpenAI (`image_url` base64 data URIs), Anthropic (`{"type": "image", "source": {"type": "base64", ...}}`), and Responses APIs directly to Google Antigravity `inlineData` parts and Cursor ACP prompt blocks. Vision-capable models (Gemini, Claude Sonnet/Opus, Cursor models) can inspect images and screenshots natively without 400 errors or text loss.
 - **macOS Keychain OAuth Integration**: Seamlessly extracts Google OAuth credentials (`service="gemini"`, `account="antigravity"`) and Cursor session JWTs (`service="cursor-access-token"`, `account="cursor-user"`) directly from macOS Keychain with thread-safe TTL caching.
-- **Antigravity & Cursor Model Quota Tracking**: Real-time quota monitoring on the dashboard and JSON endpoints (`GET /api/quota` and `GET /api/cursor/quota`). Displays visual usage bars and reset countdowns for Antigravity pools (Gemini and 3P) and Cursor buckets (`Cursor Models`, `Other Models`, `Plan`). `GET /api/opencode/status` reports OpenCode CLI availability, version, and exposed free model count (OpenCode exposes no provider quota API, so no limit bars are shown).
+- **Antigravity & Cursor Model Quota Tracking**: Real-time quota monitoring on the dashboard and JSON endpoints (`GET /api/quota` and `GET /api/cursor/quota`). Displays visual usage bars and reset countdowns for Antigravity pools (Gemini and 3P) and Cursor buckets (`Cursor Models`, `Other Models`, `Plan`). `GET /api/opencode/status` reports OpenCode CLI availability, version, and exposed free model count (OpenCode exposes no provider quota API, so no limit bars are shown). `GET /api/junie/status` reports Junie CLI availability, version, and exposed model count (Junie exposes no provider quota API, so no limit bars are shown).
 - **Extended 300s HTTP Timeout & Deep Reasoning**: 300-second upstream timeout allows models with deep reasoning chains (`gemini-4-argon-high`, `gemini-3.8-flash-high`, `claude-opus-5-5-high`) to complete complex thinking steps without connection resets.
 
 ---
@@ -128,7 +129,8 @@ Each client setup card on the web dashboard provides tabs for one-click configur
 - **AGY**: Configures Google Antigravity models exclusively (`gemini-*`, `claude-*`).
 - **Cursor**: Configures local Cursor CLI models (`cursor/auto`, `cursor/gpt-5.3-codex`, etc.).
 - **OpenCode**: Configures local OpenCode CLI free-tier models (`opencode/*-free`).
-- **All / Todos**: Configures multiple model providers side-by-side in your tool's settings (via CLI flag: `--provider all`). In tools with model pickers (Claude Code, Pi, Gentle Shell, Codex), this allows you to seamlessly switch between Antigravity, Cursor, and OpenCode models on the fly without re-running setup commands.
+- **Junie**: Configures local JetBrains Junie CLI models (`junie/gemini-3.7-flash`, etc.).
+- **All / Todos**: Configures multiple model providers side-by-side in your tool's settings (via CLI flag: `--provider all`). In tools with model pickers (Claude Code, Pi, Gentle Shell, Codex), this allows you to seamlessly switch between Antigravity, Cursor, OpenCode, and Junie models on the fly without re-running setup commands.
 
 ### 3. Manage the Background Service
 
@@ -235,6 +237,14 @@ Once configured, launch OpenCode:
 ```bash
 opencode
 ```
+
+### 🎴 Junie
+
+Run the automated setup:
+```bash
+abridge setup-gentle-shell --provider junie
+```
+Junie is exposed as a fourth upstream: its models appear as `junie/<id>` (e.g. `junie/gemini-3.7-flash`, `junie/grok-4.5`) on `/v1/models` and `/v1/chat/completions`, served through a pre-warmed `junie --acp true` process with a `junie --task` fallback. Use `--provider junie` on any client setup (`setup-claude`, `setup-pi`, `setup-openclaw`, etc.) to configure that client against Junie models.
 
 ### 🎴 OpenClaw
 
@@ -453,7 +463,7 @@ Execute the complete test suite:
 python3 -m unittest discover -s tests -v
 ```
 
-All 1170 tests run in ~3-4 seconds locally with zero external dependencies and zero network access.
+All 1219 tests run in ~3-4 seconds locally with zero external dependencies and zero network access.
 
 ### End-to-End Smoke Test
 

@@ -67,6 +67,11 @@ from bridge.opencode_backend import (
     resolve_opencode_model,
     is_antigravity_model,
 )
+from bridge.junie_backend import (
+    JunieBackend,
+    is_junie_model,
+    resolve_junie_model,
+)
 
 SAFE_REQUEST_ID_REGEX = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
@@ -100,6 +105,7 @@ class ServerContext:
     cursor_quota_provider: CursorQuotaProvider | None = None
     cursor_backend: Any | None = None
     opencode_backend: Any | None = None
+    junie_backend: Any | None = None
 
 
 @dataclass
@@ -116,6 +122,7 @@ _default_quota_provider: QuotaProvider | None = None
 _default_cursor_quota_provider: CursorQuotaProvider | None = None
 _default_cursor_backend: CursorBackend | None = None
 _default_opencode_backend: OpencodeBackend | None = None
+_default_junie_backend: JunieBackend | None = None
 
 
 def _sanitize_thought_signatures(contents: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -153,6 +160,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
     cursor_quota_provider: CursorQuotaProvider | None = None
     cursor_backend: Any | None = None
     opencode_backend: Any | None = None
+    junie_backend: Any | None = None
     server: Any = None
     request_id: str = ""
     command: str = ""
@@ -255,6 +263,21 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
         if _default_opencode_backend is None:
             _default_opencode_backend = OpencodeBackend()
         return _default_opencode_backend
+
+    def _get_junie_backend(self) -> JunieBackend:
+        if self.junie_backend is not None:
+            return self.junie_backend
+        if self.context is not None and self.context.junie_backend is not None:
+            return self.context.junie_backend
+        if self.server is not None:
+            if hasattr(self.server, "context") and getattr(self.server.context, "junie_backend", None) is not None:
+                return self.server.context.junie_backend
+            if hasattr(self.server, "junie_backend") and self.server.junie_backend is not None:
+                return self.server.junie_backend
+        global _default_junie_backend
+        if _default_junie_backend is None:
+            _default_junie_backend = JunieBackend()
+        return _default_junie_backend
 
     @contextlib.contextmanager
     def _acquire_concurrency(self) -> Iterator[bool]:
@@ -363,7 +386,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             return
 
         parsed_path = urllib.parse.urlparse(self.path).path
-        if parsed_path.startswith("/v1/") or parsed_path in ("/", "/api/status", "/api/quota", "/api/cursor/quota", "/api/opencode/status"):
+        if parsed_path.startswith("/v1/") or parsed_path in ("/", "/api/status", "/api/quota", "/api/cursor/quota", "/api/opencode/status", "/api/junie/status"):
             # Inference and admin endpoints forbid browser cross-origin preflight requests
             self.send_response(403)
             self.send_header("X-Request-ID", self.request_id)
@@ -394,7 +417,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("X-Request-ID", self.request_id)
         req_path = urllib.parse.urlparse(self.path).path
-        if not req_path.startswith("/v1/") and req_path not in ("/", "/api/status", "/api/quota", "/api/cursor/quota", "/api/opencode/status"):
+        if not req_path.startswith("/v1/") and req_path not in ("/", "/api/status", "/api/quota", "/api/cursor/quota", "/api/opencode/status", "/api/junie/status"):
             self.send_header("Access-Control-Allow-Origin", "*")
         sent_connection = False
         if headers:
@@ -539,6 +562,14 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                 self._send_error(exc)
             return
 
+        if path == "/api/junie/status":
+            try:
+                j_backend = self._get_junie_backend()
+                self._send_json(200, j_backend.status())
+            except Exception as exc:
+                self._send_error(exc)
+            return
+
         if path == "/healthz":
             self._send_json(
                 200,
@@ -569,6 +600,12 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                         models.extend(o_backend.list_models())
                 except Exception as o_err:
                     sys.stderr.write(f"Warning: failed to query OpenCode models: {o_err}\n")
+                try:
+                    j_backend = self._get_junie_backend()
+                    if j_backend is not None:
+                        models.extend(j_backend.list_models())
+                except Exception as j_err:
+                    sys.stderr.write(f"Warning: failed to query Junie models: {j_err}\n")
                 resp_data = build_openai_model_list(models)
                 self._send_json(200, resp_data)
             except Exception as exc:
@@ -721,6 +758,13 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             target_model=resolve_opencode_model(str(payload.get("model") or "")),
         )
 
+    def _handle_junie_chat_completion(self, payload: dict[str, Any]) -> None:
+        self._handle_backend_chat_completion(
+            payload,
+            backend=self._get_junie_backend(),
+            target_model=resolve_junie_model(str(payload.get("model") or "")),
+        )
+
     def _handle_backend_chat_completion(
         self,
         payload: dict[str, Any],
@@ -828,6 +872,13 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             payload,
             backend=self._get_opencode_backend(),
             target_model=resolve_opencode_model(str(payload.get("model") or "")),
+        )
+
+    def _handle_junie_messages(self, payload: dict[str, Any]) -> None:
+        self._handle_backend_messages(
+            payload,
+            backend=self._get_junie_backend(),
+            target_model=resolve_junie_model(str(payload.get("model") or "")),
         )
 
     def _handle_backend_messages(
@@ -1186,6 +1237,9 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
         if is_opencode_model(model):
             self._handle_opencode_messages(payload)
             return
+        if is_junie_model(model):
+            self._handle_junie_messages(payload)
+            return
 
         try:
             stream = bool(payload.get("stream", False))
@@ -1309,7 +1363,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
         code, err = build_openai_error_response(
             503,
             "Antigravity is not available (Google Cloud credential missing or expired). "
-            "Open Antigravity and sign in to use AGY models. Cursor and OpenCode models keep working.",
+            "Open Antigravity and sign in to use AGY models. Cursor, OpenCode and Junie models keep working.",
             "antigravity_unavailable",
         )
         self._send_json(code, err)
@@ -1322,6 +1376,9 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             return
         if is_opencode_model(model):
             self._handle_opencode_chat_completion(payload)
+            return
+        if is_junie_model(model):
+            self._handle_junie_chat_completion(payload)
             return
         if self._guard_antigravity(model):
             return
@@ -1426,6 +1483,7 @@ def create_server(
     cursor_quota_provider: CursorQuotaProvider | None = None,
     cursor_backend: Any | None = None,
     opencode_backend: Any | None = None,
+    junie_backend: Any | None = None,
 ) -> http.server.ThreadingHTTPServer:
     """Instantiates and configures a ThreadingHTTPServer instance."""
     if no_auth and not is_loopback_host(host):
@@ -1478,6 +1536,8 @@ def create_server(
         cursor_backend = CursorBackend()
     if opencode_backend is None:
         opencode_backend = OpencodeBackend()
+    if junie_backend is None:
+        junie_backend = JunieBackend()
 
     concurrency_semaphore = threading.Semaphore(max_concurrency)
 
@@ -1496,6 +1556,7 @@ def create_server(
         cursor_quota_provider=cursor_quota_provider,
         cursor_backend=cursor_backend,
         opencode_backend=opencode_backend,
+        junie_backend=junie_backend,
     )
 
     class ConfiguredHandler(OpenAIRequestHandler):
@@ -1512,6 +1573,8 @@ def create_server(
     ConfiguredHandler.quota_provider = quota_provider
     ConfiguredHandler.cursor_quota_provider = cursor_quota_provider
     ConfiguredHandler.cursor_backend = cursor_backend
+    ConfiguredHandler.opencode_backend = opencode_backend
+    ConfiguredHandler.junie_backend = junie_backend
 
     server = http.server.ThreadingHTTPServer((host, port), ConfiguredHandler)
     server.daemon_threads = True
@@ -1524,6 +1587,8 @@ def create_server(
     server.quota_provider = quota_provider  # type: ignore[attr-defined]
     server.cursor_quota_provider = cursor_quota_provider  # type: ignore[attr-defined]
     server.cursor_backend = cursor_backend  # type: ignore[attr-defined]
+    server.opencode_backend = opencode_backend  # type: ignore[attr-defined]
+    server.junie_backend = junie_backend  # type: ignore[attr-defined]
     return server
 
 
@@ -1540,6 +1605,8 @@ def run_server(
     quota_provider: QuotaProvider | None = None,
     cursor_quota_provider: CursorQuotaProvider | None = None,
     cursor_backend: Any | None = None,
+    opencode_backend: Any | None = None,
+    junie_backend: Any | None = None,
 ) -> None:
     """Starts the ThreadingHTTPServer serving OpenAI-compatible endpoints."""
     server = create_server(
@@ -1555,6 +1622,8 @@ def run_server(
         quota_provider=quota_provider,
         cursor_quota_provider=cursor_quota_provider,
         cursor_backend=cursor_backend,
+        opencode_backend=opencode_backend,
+        junie_backend=junie_backend,
     )
     actual_port = server.server_address[1]
     print(f"Antigravity Model Bridge listening on http://{host}:{actual_port}")
@@ -1564,6 +1633,9 @@ def run_server(
     if hasattr(server, "opencode_backend") and server.opencode_backend is not None:
         if hasattr(server.opencode_backend, "warmup"):
             server.opencode_backend.warmup()
+    if hasattr(server, "junie_backend") and server.junie_backend is not None:
+        if hasattr(server.junie_backend, "warmup"):
+            server.junie_backend.warmup()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

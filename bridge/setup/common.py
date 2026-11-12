@@ -298,3 +298,18 @@ def opencode_provider_models() -> list[tuple[str, str]]:
 
 
 DEFAULT_OPENCODE_UPSTREAM_MODEL = "opencode/pulse-alpha-free"
+
+
+def junie_provider_models() -> list[tuple[str, str]]:
+    """Devuelve (model_id, label) para los modelos de Junie como upstream.
+
+    Centraliza el picker de modelos que cada configurador de cliente usa cuando
+    se configura con --provider junie, para que el tag [Junie] y el set de
+    modelos sean consistentes entre todos los agentes.
+    """
+    from bridge.junie_backend import JUNIE_KNOWN_MODELS, format_junie_model_display_name
+
+    return [(m, format_junie_model_display_name(m)) for m in sorted(JUNIE_KNOWN_MODELS)]
+
+
+DEFAULT_JUNIE_UPSTREAM_MODEL = "junie/gemini-3.7-flash"

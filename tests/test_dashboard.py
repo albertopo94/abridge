@@ -1116,6 +1116,40 @@ class TestOpencodeQuotaTab(unittest.TestCase):
             self.assertIn(key, html)
 
 
+class TestJunieQuotaTab(unittest.TestCase):
+    """Junie tab on the quota panel (S3): availability, no fake bars."""
+
+    def _render(self):
+        auth_status = {"status": "Valid", "email": "dev@example.com", "message": "Authenticated"}
+        return render_dashboard("127.0.0.1", 24980, auth_status, models_count=10)
+
+    def test_tab_button_and_card_present(self):
+        html = self._render()
+        self.assertIn('id="tab-quota-junie"', html)
+        self.assertIn('id="junie-quota-card"', html)
+        self.assertIn("/api/junie/status", html)
+        self.assertIn("fetchJunieStatus", html)
+
+    def test_switch_quota_tab_supports_junie(self):
+        html = self._render()
+        self.assertIn('getElementById("junie-quota-card")', html)
+        self.assertIn("tab-quota-junie", html)
+        self.assertIn("junieBtn", html)
+
+    def test_junie_card_never_renders_quota_bars(self):
+        html = self._render()
+        card_start = html.index('id="junie-quota-card"')
+        card_end = html.index("</aside>", card_start)
+        card = html[card_start:card_end]
+        self.assertNotIn("quota-bar", card)
+        self.assertIn("junie-no-quota", card)
+
+    def test_junie_strings_are_i18n(self):
+        html = self._render()
+        for key in ("junie_tab_title", "junie_status_available", "junie_status_missing", "junie_no_quota_note"):
+            self.assertIn(key, html)
+
+
 class TestAgyAvailabilityBadge(unittest.TestCase):
     """The Antigravity auth badge in the quota card mirrors the live auth verdict,
     so it reflects a refreshed credential without a restart."""

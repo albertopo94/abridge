@@ -295,6 +295,7 @@ def _make_client_providers(
     docs_url: str,
     cursor_snippet: Any = None,
     opencode_snippet: Any = None,
+    junie_snippet: Any = None,
     extra_providers: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     providers: list[dict[str, Any]] = [
@@ -341,6 +342,26 @@ def _make_client_providers(
                 "manual_snippet": opencode_snippet if opencode_snippet is not None else agy_snippet,
                 "restore_cmd": lambda addr: f"abridge restore-{client_id} --provider opencode",
                 "docs_url": "https://opencode.ai/docs",
+            }
+        )
+
+    # Junie is a fourth upstream, so client cards that configure against bridge
+    # upstreams gain a junie tab. The junie card itself never configures against
+    # itself, and guide-only cards (cursor, freellmapi) have no providers.
+    if client_id != "junie":
+        providers.append(
+            {
+                "id": "junie",
+                "label_en": "Junie",
+                "label_es": "Junie",
+                "auto_cmd": lambda addr: (
+                    f"abridge setup-{client_id} --provider junie --model junie/gemini-3.7-flash --port {addr.rsplit(':', 1)[1]}"
+                    if ":" in addr and addr.rsplit(":", 1)[1].isdigit() and addr.rsplit(":", 1)[1] != "24980"
+                    else f"abridge setup-{client_id} --provider junie --model junie/gemini-3.7-flash"
+                ),
+                "manual_snippet": junie_snippet if junie_snippet is not None else agy_snippet,
+                "restore_cmd": lambda addr: f"abridge restore-{client_id} --provider junie",
+                "docs_url": "https://junie.jetbrains.com/docs",
             }
         )
 
@@ -463,6 +484,7 @@ CLIENT_CARDS: list[dict[str, Any]] = [
             "https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview",
             cursor_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="cursor/auto"',
             opencode_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="opencode/pulse-alpha-free"',
+            junie_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="junie/gemini-3.7-flash"',
         ),
     },
     {
@@ -537,6 +559,19 @@ CLIENT_CARDS: list[dict[str, Any]] = [
                 f'model_auto_compact_token_limit = 943718\n\n'
                 f'[model_providers.opencode]\n'
                 f'name = "opencode"\n'
+                f'base_url = "http://{addr}/v1"\n'
+                f'wire_api = "responses"\n'
+                f'requires_openai_auth = false\n'
+                f'http_headers = {{ Authorization = "Bearer {api_key if not str(api_key).startswith("$(") else "<YOUR_API_KEY>"}" }}'
+            ),
+            junie_snippet=lambda addr, api_key='<YOUR_API_KEY>': (
+                f'# ~/.codex/config.toml\n'
+                f'model = "junie/gemini-3.7-flash"\n'
+                f'model_provider = "junie"\n'
+                f'model_context_window = 1048576\n'
+                f'model_auto_compact_token_limit = 943718\n\n'
+                f'[model_providers.junie]\n'
+                f'name = "junie"\n'
                 f'base_url = "http://{addr}/v1"\n'
                 f'wire_api = "responses"\n'
                 f'requires_openai_auth = false\n'
@@ -1512,6 +1547,7 @@ def render_dashboard(
           <button type="button" id="tab-quota-agy" class="quota-tab-btn active" role="tab" aria-selected="true" onclick="switchQuotaTab('agy')">Antigravity</button>
           <button type="button" id="tab-quota-cursor" class="quota-tab-btn" role="tab" aria-selected="false" onclick="switchQuotaTab('cursor')">Cursor</button>
           <button type="button" id="tab-quota-opencode" class="quota-tab-btn" role="tab" aria-selected="false" onclick="switchQuotaTab('opencode')">OpenCode</button>
+          <button type="button" id="tab-quota-junie" class="quota-tab-btn" role="tab" aria-selected="false" onclick="switchQuotaTab('junie')">Junie</button>
         </div>
 
         <div id="quota-card" class="quota-card">
@@ -1590,6 +1626,30 @@ def render_dashboard(
           </div>
           <div id="opencode-no-quota" class="quota-footnote" data-i18n="opencode_no_quota_note">OpenCode does not expose a provider quota API. Free models run on upstream free pools and may be region-restricted; the bridge reports those errors verbatim.</div>
         </div>
+
+        <div id="junie-quota-card" class="quota-card" style="display: none;">
+          <div class="quota-header">
+            <div class="quota-title-row">
+              {OPENCODE_ICON_SVG}
+              <div class="quota-title-text">
+                <span class="quota-title" data-i18n="junie_tab_title">Junie</span>
+                <span id="junie-quota-subtitle" class="quota-subtitle" data-i18n="quota_loading">{quota_loading_text}</span>
+              </div>
+            </div>
+            <button type="button" id="junie-quota-refresh-btn" class="quota-refresh-btn" aria-label="{quota_refresh_text}" onclick="refreshJunieStatus()" title="{quota_refresh_text}">
+              {REFRESH_ICON_SVG}
+            </button>
+          </div>
+          <div class="quota-divider"></div>
+          <div id="junie-quota-body" class="quota-buckets">
+            <div class="quota-skeleton">
+              <div class="skeleton-line" style="width: 70%;"></div>
+              <div class="skeleton-line" style="width: 100%; height: 6px;"></div>
+              <div class="skeleton-line" style="width: 45%;"></div>
+            </div>
+          </div>
+          <div id="junie-no-quota" class="quota-footnote" data-i18n="junie_no_quota_note">Junie does not expose a provider quota API. Models run on upstream provider pools and may be region-restricted; the bridge reports those errors verbatim.</div>
+        </div>
       </aside>
 
       <main class="cards-grid">
@@ -1662,6 +1722,12 @@ def render_dashboard(
         opencode_free_models: "{{n}} free models exposed",
         opencode_version: "CLI v{{v}}",
         opencode_no_quota_note: "OpenCode does not expose a provider quota API. Free models run on upstream free pools and may be region-restricted; the bridge reports those errors verbatim.",
+        junie_tab_title: "Junie",
+        junie_status_available: "CLI ready",
+        junie_status_missing: "Junie CLI not found",
+        junie_free_models: "{{n}} models exposed",
+        junie_version: "CLI v{{v}}",
+        junie_no_quota_note: "Junie does not expose a provider quota API. Models run on upstream provider pools and may be region-restricted; the bridge reports those errors verbatim.",
         quota_group_gemini: "Gemini Models",
         quota_group_claude_gpt: "Claude and GPT models",
         quota_group_argon: "Gemini 4 Argon",
@@ -1729,6 +1795,12 @@ def render_dashboard(
         opencode_free_models: "{{n}} modelos gratuitos expuestos",
         opencode_version: "CLI v{{v}}",
         opencode_no_quota_note: "OpenCode no expone una API de cuota del proveedor. Los modelos gratuitos usan pools gratuitos y pueden estar restringidos por región; el bridge reporta esos errores tal cual.",
+        junie_tab_title: "Junie",
+        junie_status_available: "CLI listo",
+        junie_status_missing: "No se encontró el CLI de Junie",
+        junie_free_models: "{{n}} modelos expuestos",
+        junie_version: "CLI v{{v}}",
+        junie_no_quota_note: "Junie no expone una API de cuota del proveedor. Los modelos corren en pools del proveedor y pueden estar restringidos por región; el bridge reporta esos errores tal cual.",
         quota_group_gemini: "Modelos Gemini",
         quota_group_claude_gpt: "Modelos Claude y GPT",
         quota_group_argon: "Gemini 4 Argon",
@@ -2326,6 +2398,68 @@ def render_dashboard(
       fetchOpencodeStatus();
     }}
 
+    function renderJunieStatus(data) {{
+      var dict = I18N[currentLang] || I18N.en;
+      var subtitleEl = document.getElementById("junie-quota-subtitle");
+      var bodyEl = document.getElementById("junie-quota-body");
+      if (!bodyEl) return;
+      bodyEl.innerHTML = "";
+
+      if (!data || !data.available) {{
+        if (subtitleEl) subtitleEl.textContent = dict.junie_status_missing || "Junie CLI not found";
+        var miss = document.createElement("div");
+        miss.className = "quota-footnote";
+        miss.textContent = "junie";
+        var pre = document.createElement("div");
+        pre.className = "quota-bucket";
+        var cmd = document.createElement("code");
+        cmd.textContent = "curl -fsSL https://junie.jetbrains.com/install.sh | bash";
+        pre.appendChild(document.createTextNode("Install: "));
+        pre.appendChild(cmd);
+        bodyEl.appendChild(miss);
+        bodyEl.appendChild(pre);
+        return;
+      }}
+
+      if (subtitleEl) subtitleEl.textContent = dict.junie_status_available || "CLI ready";
+
+      var row1 = document.createElement("div");
+      row1.className = "quota-bucket";
+      var label1 = document.createElement("span");
+      label1.className = "quota-bucket-label";
+      label1.textContent = (dict.junie_free_models || "{{n}} models exposed").replace("{{n}}", String(data.model_count || 0));
+      row1.appendChild(label1);
+      bodyEl.appendChild(row1);
+
+      if (data.version) {{
+        var row2 = document.createElement("div");
+        row2.className = "quota-bucket";
+        var label2 = document.createElement("span");
+        label2.className = "quota-bucket-label";
+        label2.textContent = (dict.junie_version || "CLI v{{v}}").replace("{{v}}", String(data.version));
+        row2.appendChild(label2);
+        bodyEl.appendChild(row2);
+      }}
+    }}
+
+    function fetchJunieStatus() {{
+      fetch("/api/junie/status")
+        .then(function(res) {{
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        }})
+        .then(function(data) {{
+          renderJunieStatus(data);
+        }})
+        .catch(function(err) {{
+          renderJunieStatus({{ available: false, error: String(err) }});
+        }});
+    }}
+
+    function refreshJunieStatus() {{
+      fetchJunieStatus();
+    }}
+
     (function initLang() {{
       var saved = null;
       try {{
@@ -2336,13 +2470,14 @@ def render_dashboard(
       }}
       try {{
         var savedQuotaTab = localStorage.getItem("agy_quota_tab");
-        if (savedQuotaTab === "cursor" || savedQuotaTab === "opencode") {{
+        if (savedQuotaTab === "cursor" || savedQuotaTab === "opencode" || savedQuotaTab === "junie") {{
           switchQuotaTab(savedQuotaTab);
         }}
       }} catch (e) {{}}
       fetchQuota(false);
       fetchCursorQuota(false);
       fetchOpencodeStatus();
+      fetchJunieStatus();
     }})();
 
     setInterval(function() {{
@@ -2360,21 +2495,26 @@ def render_dashboard(
       fetchQuota(false);
       fetchCursorQuota(false);
       fetchStatus();
+      fetchOpencodeStatus();
+      fetchJunieStatus();
     }}, 300000);
 
     function switchQuotaTab(tabId) {{
       var agyCard = document.getElementById("quota-card");
       var cursorCard = document.getElementById("cursor-quota-card");
       var opencodeCard = document.getElementById("opencode-quota-card");
+      var junieCard = document.getElementById("junie-quota-card");
       var agyBtn = document.getElementById("tab-quota-agy");
       var cursorBtn = document.getElementById("tab-quota-cursor");
       var opencodeBtn = document.getElementById("tab-quota-opencode");
+      var junieBtn = document.getElementById("tab-quota-junie");
 
       if (agyCard) agyCard.style.display = (tabId === "agy") ? "flex" : "none";
       if (cursorCard) cursorCard.style.display = (tabId === "cursor") ? "flex" : "none";
       if (opencodeCard) opencodeCard.style.display = (tabId === "opencode") ? "flex" : "none";
+      if (junieCard) junieCard.style.display = (tabId === "junie") ? "flex" : "none";
 
-      var pairs = [[agyBtn, "agy"], [cursorBtn, "cursor"], [opencodeBtn, "opencode"]];
+      var pairs = [[agyBtn, "agy"], [cursorBtn, "cursor"], [opencodeBtn, "opencode"], [junieBtn, "junie"]];
       for (var i = 0; i < pairs.length; i++) {{
         var btn = pairs[i][0];
         if (!btn) continue;

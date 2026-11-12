@@ -174,6 +174,7 @@ class TestServerEndpoints(unittest.TestCase):
             cursor_quota_provider=cls.mock_cursor_quota_provider,
             cursor_backend=cls.mock_cursor_backend,
             opencode_backend=cls.mock_opencode_backend,
+            junie_backend=MockJunieBackend(),
         )
         cls.port = cls.server.server_address[1]
         cls.base_url = f"http://127.0.0.1:{cls.port}"
@@ -232,8 +233,8 @@ class TestServerEndpoints(unittest.TestCase):
         status, headers, body = self._http_get("/v1/models")
         self.assertEqual(status, 200)
         self.assertEqual(body["object"], "list")
-        # 2 Antigravity + 2 Cursor + 2 OpenCode (all injected mocks).
-        self.assertEqual(len(body["data"]), 6)
+        # 2 Antigravity + 2 Cursor + 2 OpenCode + 2 Junie (all injected mocks).
+        self.assertEqual(len(body["data"]), 8)
         ids = [m["id"] for m in body["data"]]
         self.assertIn("gemini-2.5-pro", ids)
         self.assertIn("cursor/gpt-5.3-codex", ids)
@@ -628,6 +629,7 @@ class TestServerEndpoints(unittest.TestCase):
             cursor_quota_provider=MockCursorQuotaProvider(),
             cursor_backend=MockCursorBackend(),
             opencode_backend=MockOpencodeBackend(),
+            junie_backend=MockJunieBackend(),
         )
         try:
             # The gateway still comes up; Antigravity is flagged unavailable.
@@ -653,6 +655,7 @@ class TestServerEndpoints(unittest.TestCase):
             cursor_quota_provider=MockCursorQuotaProvider(),
             cursor_backend=MockCursorBackend(),
             opencode_backend=MockOpencodeBackend(),
+            junie_backend=MockJunieBackend(),
         )
         try:
             self.assertIsNotNone(server.server_address)
@@ -2845,6 +2848,36 @@ class MockOpencodeBackend:
         }
 
 
+class MockJunieBackend:
+    def __init__(self) -> None:
+        self.models = [
+            {"id": "junie/gemini-3.7-flash", "slug": "junie/gemini-3.7-flash", "display_name": "Gemini 3.7 Flash [Junie]", "owned_by": "junie"},
+            {"id": "junie/grok-4.5", "slug": "junie/grok-4.5", "display_name": "Grok 4.5 [Junie]", "owned_by": "junie"},
+        ]
+        self.chat_calls: list[dict[str, Any]] = []
+
+    def list_models(self, force: bool = False) -> list[dict[str, Any]]:
+        return list(self.models)
+
+    def stream_chat(self, prompt: str, model: str = "", timeout: float = 300.0, **kwargs: Any):
+        self.chat_calls.append({"prompt": prompt, "model": model, "stream": True})
+        yield "Hello from "
+        yield f"Junie {model}!"
+
+    def generate_chat(self, prompt: str, model: str = "", timeout: float = 300.0, **kwargs: Any) -> str:
+        self.chat_calls.append({"prompt": prompt, "model": model, "stream": False})
+        return f"Hello from Junie {model}!"
+
+    def status(self) -> dict[str, Any]:
+        return {
+            "available": True,
+            "binary_path": "/usr/bin/junie",
+            "version": "26.11.1",
+            "model_count": len(self.models),
+            "quota_supported": False,
+        }
+
+
 class TestOpencodeUpstreamRouting(unittest.TestCase):
     """OpenCode upstream: catalog inclusion and routing in chat/anthropic handlers (T3)."""
 
@@ -2863,6 +2896,7 @@ class TestOpencodeUpstreamRouting(unittest.TestCase):
             cursor_quota_provider=MockCursorQuotaProvider(),
             cursor_backend=cls.mock_cursor_backend,
             opencode_backend=cls.mock_opencode_backend,
+            junie_backend=MockJunieBackend(),
         )
         cls.port = cls.server.server_address[1]
         cls.base_url = f"http://127.0.0.1:{cls.port}"
@@ -3002,6 +3036,7 @@ class TestStartWithoutAntigravity(unittest.TestCase):
             cursor_quota_provider=MockCursorQuotaProvider(),
             cursor_backend=MockCursorBackend(),
             opencode_backend=MockOpencodeBackend(),
+            junie_backend=MockJunieBackend(),
             **kw,
         )
 

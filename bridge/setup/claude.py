@@ -7,7 +7,9 @@ from typing import Any, cast
 from bridge.setup.base import ClientConfigurator, ConfigPath, get_configurator
 from bridge.setup.common import (
     DEFAULT_OPENCODE_UPSTREAM_MODEL,
+    DEFAULT_JUNIE_UPSTREAM_MODEL,
     opencode_provider_models,
+    junie_provider_models,
     atomic_write_file,
     create_backup,
     get_active_api_key,
@@ -220,6 +222,15 @@ class ClaudeConfigurator(ClientConfigurator):
             model_options = [
                 {"model": mid, "label": label, "behavesAs": "claude-3-7-sonnet"}
                 for mid, label in opencode_provider_models()
+            ]
+        elif provider == "junie":
+            if model and model.startswith("junie/"):
+                effective_model = model
+            else:
+                effective_model = DEFAULT_JUNIE_UPSTREAM_MODEL
+            model_options = [
+                {"model": mid, "label": label, "behavesAs": "claude-3-7-sonnet"}
+                for mid, label in junie_provider_models()
             ]
         else:
             model_options = [dict(opt) for opt in DEFAULT_CLAUDE_MODEL_PICKER_OPTIONS]

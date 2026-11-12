@@ -309,8 +309,8 @@ def _make_client_providers(
     providers: list[dict[str, Any]] = [
         {
             "id": "agy",
-            "label_en": "AGY (Antigravity)",
-            "label_es": "AGY (Antigravity)",
+            "label_en": "AGY",
+            "label_es": "AGY",
             "auto_cmd": agy_auto_cmd,
             "manual_snippet": agy_snippet,
             "restore_cmd": agy_restore,
@@ -318,8 +318,8 @@ def _make_client_providers(
         },
         {
             "id": "cursor",
-            "label_en": "Cursor (Agent)",
-            "label_es": "Cursor (Agent)",
+            "label_en": "Cursor",
+            "label_es": "Cursor",
             "warning_tip_en": CURSOR_FREE_TIP_EN,
             "warning_tip_es": CURSOR_FREE_TIP_ES,
             "auto_cmd": lambda addr: (
@@ -340,8 +340,8 @@ def _make_client_providers(
         providers.append(
             {
                 "id": "opencode",
-                "label_en": "OpenCode (Free)",
-                "label_es": "OpenCode (Gratis)",
+                "label_en": "OpenCode",
+                "label_es": "OpenCode",
                 "auto_cmd": lambda addr: (
                     f"abridge setup-{client_id} --provider opencode --model opencode/pulse-alpha-free --port {addr.rsplit(':', 1)[1]}"
                     if ":" in addr and addr.rsplit(":", 1)[1].isdigit() and addr.rsplit(":", 1)[1] != "24980"
@@ -1375,26 +1375,38 @@ def render_dashboard(
     }}
     .provider-tabs {{
       display: flex;
-      flex-wrap: wrap;
-      gap: 0.35rem;
+      gap: 0.25rem;
       background: #181818;
       border: 1px solid var(--card-border);
       border-radius: 8px;
       padding: 3px;
       margin-top: 0.25rem;
       margin-bottom: 0.5rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }}
+    .provider-tabs::-webkit-scrollbar {{
+      display: none;
     }}
     .quota-tabs {{
       display: flex;
-      gap: 0.35rem;
+      gap: 0.25rem;
       background: #181818;
       border: 1px solid var(--card-border);
       border-radius: 8px;
       padding: 3px;
       margin-bottom: 0.75rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }}
+    .quota-tabs::-webkit-scrollbar {{
+      display: none;
     }}
     .quota-tab-btn {{
-      flex: 1;
+      flex: 1 0 auto;
+      white-space: nowrap;
       border: none;
       background: transparent;
       color: var(--text-secondary);
@@ -1415,13 +1427,14 @@ def render_dashboard(
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     }}
     .provider-tab-btn {{
-      flex: 1;
+      flex: 1 0 auto;
+      white-space: nowrap;
       border: none;
       background: transparent;
       color: var(--text-secondary);
       font-size: 0.78rem;
       font-weight: 500;
-      padding: 0.35rem 0.65rem;
+      padding: 0.35rem 0.55rem;
       border-radius: 6px;
       cursor: pointer;
       transition: all 0.15s ease;
@@ -1701,13 +1714,14 @@ def render_dashboard(
         tip_pi: "💡 Tip: Run abridge setup-pi --set-default to make AGY the default provider in settings.json.",
         desc_gentle_shell: "An isolated terminal companion for Pi with focused subagents, review mode, and ODD harness.",
         "desc_gentle-shell": "An isolated terminal companion for Pi with focused subagents, review mode, and ODD harness.",
-        "tab_gentle-shell_agy": "AGY (Antigravity)",
-        "tab_gentle-shell_cursor": "Cursor (Agent)",
+        "tab_gentle-shell_agy": "AGY",
+        "tab_gentle-shell_cursor": "Cursor",
         "tab_gentle-shell_all": "All",
         "tab_gentle-shell_freellmapi": "FreeLLMAPI",
-        "tab_agy": "AGY (Antigravity)",
-        "tab_cursor": "Cursor (Agent)",
-        "tab_opencode": "OpenCode (Free)",
+        "tab_agy": "AGY",
+        "tab_cursor": "Cursor",
+        "tab_opencode": "OpenCode",
+        "tab_junie": "Junie",
         "tab_all": "All",
         "tab_freellmapi": "FreeLLMAPI",
         "tip_warning_gentle-shell_freellmapi": "⚠️ Requires FreeLLMAPI gateway running on http://127.0.0.1:31415",
@@ -1774,13 +1788,14 @@ def render_dashboard(
         tip_pi: "💡 Tip: Ejecut\u00e1 abridge setup-pi --set-default para fijar AGY como proveedor por defecto en settings.json.",
         desc_gentle_shell: "Un entorno de terminal aislado para Pi con subagentes enfocados, modo review y arn\u00e9s ODD.",
         "desc_gentle-shell": "Un entorno de terminal aislado para Pi con subagentes enfocados, modo review y arn\u00e9s ODD.",
-        "tab_gentle-shell_agy": "AGY (Antigravity)",
-        "tab_gentle-shell_cursor": "Cursor (Agent)",
+        "tab_gentle-shell_agy": "AGY",
+        "tab_gentle-shell_cursor": "Cursor",
         "tab_gentle-shell_all": "Todos",
         "tab_gentle-shell_freellmapi": "FreeLLMAPI",
-        "tab_agy": "AGY (Antigravity)",
-        "tab_cursor": "Cursor (Agent)",
-        "tab_opencode": "OpenCode (Gratis)",
+        "tab_agy": "AGY",
+        "tab_cursor": "Cursor",
+        "tab_opencode": "OpenCode",
+        "tab_junie": "Junie",
         "tab_all": "Todos",
         "tab_freellmapi": "FreeLLMAPI",
         "tip_warning_gentle-shell_freellmapi": "⚠️ Requiere el gateway de FreeLLMAPI corriendo en http://127.0.0.1:31415",
@@ -2550,6 +2565,9 @@ def render_dashboard(
         if (match) {{
           btn.classList.add("active");
           btn.setAttribute("aria-selected", "true");
+          if (btn.scrollIntoView) {{
+            btn.scrollIntoView({{ behavior: "smooth", block: "nearest", inline: "nearest" }});
+          }}
         }} else {{
           btn.classList.remove("active");
           btn.setAttribute("aria-selected", "false");

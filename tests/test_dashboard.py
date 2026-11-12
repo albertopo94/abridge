@@ -1033,7 +1033,7 @@ class TestDashboardBilingual(unittest.TestCase):
         self.assertIn('data-card="gentle-shell"', html_en)
         self.assertIn('data-provider="agy"', html_en)
         self.assertIn('data-provider="freellmapi"', html_en)
-        self.assertIn("AGY (Antigravity)", html_en)
+        self.assertIn("AGY", html_en)
         self.assertIn("FreeLLMAPI", html_en)
 
         # FreeLLMAPI commands and tooltip
@@ -1044,8 +1044,9 @@ class TestDashboardBilingual(unittest.TestCase):
         self.assertIn("Requires FreeLLMAPI gateway running on http://127.0.0.1:31415", html_en)
         self.assertIn("switchProvider", html_en)
 
-        # Provider tabs wrap so they never overflow the card as more sources are added.
-        self.assertIn("flex-wrap: wrap;", html_en)
+        # Provider tabs support smooth horizontal overflow without breaking the card.
+        self.assertIn("overflow-x: auto;", html_en)
+        self.assertIn("scrollbar-width: none;", html_en)
         self.assertIn(".provider-tabs", html_en)
 
         # Spanish localization

@@ -1742,6 +1742,33 @@ def render_dashboard(
       }}
     }};
 
+    function applyAuthBadge(el) {{
+      if (!el) el = document.querySelector('[data-i18n="auth"]');
+      if (!el) return;
+      var dict = I18N[currentLang] || I18N.en;
+      var st = el.getAttribute("data-status");
+      var email = el.getAttribute("data-email") || "";
+      var label = "";
+      var cls = "badge-warning";
+      if (st === "Valid") {{
+        var validText = dict.auth_valid || "Valid";
+        label = email ? (validText + " (" + email + ")") : validText;
+        cls = "badge-success";
+      }} else if (st === "Expired") {{
+        label = dict.auth_expired || "Expired — Open Antigravity to refresh";
+      }} else if (st === "Rejected") {{
+        label = dict.auth_rejected || "Rejected — Re-authenticate in Antigravity";
+        cls = "badge-danger";
+      }} else if (st === "Unknown") {{
+        label = dict.auth_unknown || "Unverified — Google did not confirm the credential";
+      }} else {{
+        label = dict.auth_missing || "Missing — Open Antigravity to refresh";
+        cls = "badge-danger";
+      }}
+      el.className = "badge " + cls;
+      el.innerHTML = "🛡️ " + label;
+    }}
+
     function setLanguage(lang) {{
       var effectiveLang = (lang === "es") ? "es" : "en";
       currentLang = effectiveLang;
@@ -1773,22 +1800,7 @@ def render_dashboard(
           var tpl = dict.models || "{{count}} Models Discovered";
           el.innerHTML = "⚡ " + tpl.replace("{{count}}", count);
         }} else if (key === "auth") {{
-          var st = el.getAttribute("data-status");
-          var email = el.getAttribute("data-email");
-          var label = "";
-          if (st === "Valid") {{
-            var validText = dict.auth_valid || "Valid";
-            label = email ? (validText + " (" + email + ")") : validText;
-          }} else if (st === "Expired") {{
-            label = dict.auth_expired || "Expired — Open Antigravity to refresh";
-          }} else if (st === "Rejected") {{
-            label = dict.auth_rejected || "Rejected — Re-authenticate in Antigravity";
-          }} else if (st === "Unknown") {{
-            label = dict.auth_unknown || "Unverified — Google did not confirm the credential";
-          }} else {{
-            label = dict.auth_missing || "Missing — Open Antigravity to refresh";
-          }}
-          el.innerHTML = "🛡️ " + label;
+          applyAuthBadge(el);
         }} else if (key === "api_key_badge") {{
           var isConfigured = el.getAttribute("data-configured") === "true";
           var badgeText = isConfigured ? (dict.api_key_configured || "API Key: Configured") : (dict.api_key_not_required || "API Key: Not required");
@@ -2053,6 +2065,26 @@ def render_dashboard(
 
     function refreshQuota() {{
       fetchQuota(true);
+      fetchStatus();
+    }}
+
+    function fetchStatus() {{
+      fetch("/api/status")
+        .then(function(res) {{
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        }})
+        .then(function(data) {{
+          var auth = data.auth || {{}};
+          var el = document.querySelector('[data-i18n="auth"]');
+          if (!el) return;
+          el.setAttribute("data-status", auth.status || "Missing");
+          el.setAttribute("data-email", auth.email || "");
+          applyAuthBadge(el);
+        }})
+        .catch(function() {{
+          /* keep the last known badge on transient failures */
+        }});
     }}
 
     var currentCursorQuotaSnapshot = null;
@@ -2327,6 +2359,7 @@ def render_dashboard(
     setInterval(function() {{
       fetchQuota(false);
       fetchCursorQuota(false);
+      fetchStatus();
     }}, 300000);
 
     function switchQuotaTab(tabId) {{

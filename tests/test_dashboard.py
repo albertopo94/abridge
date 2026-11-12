@@ -1136,6 +1136,37 @@ class TestAgyAvailabilityBadge(unittest.TestCase):
                 self.assertIn(stale, html)
 
 
+class TestDashboardAuthBadgeLiveRefresh(unittest.TestCase):
+    """The 🛡️ auth badge reconciles against /api/status on the client, so it
+    drops a stale "Expired" verdict once the credential is refreshed, without
+    a full page reload."""
+
+    def _render(self):
+        auth = {"status": "Valid", "email": "dev@example.com", "message": "Authenticated"}
+        return render_dashboard("127.0.0.1", 24980, auth, 10)
+
+    def test_client_fetches_api_status_and_updates_badge(self):
+        html = self._render()
+        self.assertIn("function fetchStatus", html)
+        self.assertIn('fetch("/api/status")', html)
+        self.assertIn('setAttribute("data-status"', html)
+        self.assertIn('setAttribute("data-email"', html)
+
+    def test_quota_refresh_button_also_refreshes_badge(self):
+        html = self._render()
+        start = html.find("function refreshQuota")
+        self.assertNotEqual(start, -1)
+        end = html.find("function fetchStatus", start)
+        self.assertNotEqual(end, -1)
+        self.assertIn("fetchStatus()", html[start:end])
+
+    def test_periodic_interval_refreshes_badge(self):
+        html = self._render()
+        idx = html.find("}, 300000);")
+        self.assertNotEqual(idx, -1)
+        self.assertIn("fetchStatus()", html[max(0, idx - 120):idx])
+
+
 class TestOpencodeProviderTabOnClientCards(unittest.TestCase):
     """RED (T5/S1/S4): The opencode provider tab must be added to client cards
     that configure against bridge upstreams (claude, codex, hermes, pi,

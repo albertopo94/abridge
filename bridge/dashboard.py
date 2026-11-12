@@ -1375,6 +1375,7 @@ def render_dashboard(
     }}
     .provider-tabs {{
       display: flex;
+      flex-wrap: wrap;
       gap: 0.35rem;
       background: #181818;
       border: 1px solid var(--card-border);

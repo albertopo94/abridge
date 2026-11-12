@@ -1044,6 +1044,10 @@ class TestDashboardBilingual(unittest.TestCase):
         self.assertIn("Requires FreeLLMAPI gateway running on http://127.0.0.1:31415", html_en)
         self.assertIn("switchProvider", html_en)
 
+        # Provider tabs wrap so they never overflow the card as more sources are added.
+        self.assertIn("flex-wrap: wrap;", html_en)
+        self.assertIn(".provider-tabs", html_en)
+
         # Spanish localization
         html_es = render_dashboard("127.0.0.1", 24980, auth_status, models_count=10, lang="es")
         self.assertIn("Requiere el gateway de FreeLLMAPI corriendo en http://127.0.0.1:31415", html_es)
@@ -1052,9 +1056,11 @@ class TestDashboardBilingual(unittest.TestCase):
         auth_status = {"status": "Valid", "email": "dev@example.com", "message": "Authenticated"}
         html_en = render_dashboard("127.0.0.1", 24980, auth_status, models_count=10, lang="en")
 
-        # Gentle shell has all 4 tabs
+        # Gentle shell has all provider tabs
         self.assertIn('data-card="gentle-shell" data-provider="agy"', html_en)
         self.assertIn('data-card="gentle-shell" data-provider="cursor"', html_en)
+        self.assertIn('data-card="gentle-shell" data-provider="opencode"', html_en)
+        self.assertIn('data-card="gentle-shell" data-provider="junie"', html_en)
         self.assertIn('data-card="gentle-shell" data-provider="all"', html_en)
         self.assertIn('data-card="gentle-shell" data-provider="freellmapi"', html_en)
 

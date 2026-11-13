@@ -1,5 +1,6 @@
 """CLI command modules and handlers for agy-model-bridge."""
 
+from bridge.cli.auth import handle_auth
 from bridge.cli.daemon import (
     handle_dashboard,
     handle_restart,
@@ -25,6 +26,7 @@ from bridge.cli.setup import (
 )
 
 __all__ = [
+    "handle_auth",
     "handle_dashboard",
     "handle_restart",
     "handle_restore_cli",

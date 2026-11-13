@@ -5,6 +5,7 @@ import sys
 
 from bridge import __version__
 from bridge.cli import (
+    handle_auth,
     handle_dashboard,
     handle_restore_cli,
     handle_server,
@@ -91,6 +92,9 @@ def main(argv: list[str] | None = None) -> int:
     if argv and argv[0] in ("-h", "--help", "-help"):
         _print_root_help(prog_base)
         return 0
+
+    if argv and argv[0] == "auth":
+        return handle_auth(argv[1:], prog_base)
 
     if argv and argv[0] in ("update", "upgrade"):
         return handle_update(argv[1:], prog_base, subcmd=argv[0], update_fn=update_installation)
@@ -224,6 +228,7 @@ def _print_root_help(prog_base: str) -> None:
         ("stop", t("cli_cmd_stop")),
         ("restart", t("cli_cmd_restart")),
         ("status", t("cli_cmd_status")),
+        ("auth", t("cli_cmd_auth")),
         ("dashboard", t("cli_cmd_dashboard")),
         ("setup-claude", t("cli_cmd_setup_claude")),
         ("setup-codex", t("cli_cmd_setup_codex")),

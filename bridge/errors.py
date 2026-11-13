@@ -63,3 +63,15 @@ class ProtocolError(BridgeError):
     """Raised when protocol translation or formatting fails."""
 
     pass
+
+
+class InteractionStateError(BridgeError):
+    """Raised when stateless interaction state is missing, expired, or ambiguous (HTTP 409)."""
+
+    def __init__(
+        self,
+        message: str = "Interaction continuity state is missing or expired. Start a new conversation.",
+        code: str = "interaction_state_missing",
+    ) -> None:
+        super().__init__(message)
+        self.code = code

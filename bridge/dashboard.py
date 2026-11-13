@@ -249,12 +249,19 @@ JUNIE_ICON_SVG = (
 )
 
 AISTUDIO_ICON_SVG = (
-    '<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">'
-    '<defs><linearGradient id="aistudio-grad" x1="0%" y1="0%" x2="100%" y2="100%">'
-    '<stop offset="0%" stop-color="#4285F4"/><stop offset="55%" stop-color="#8E6BFF"/><stop offset="100%" stop-color="#F26B9A"/>'
-    '</linearGradient></defs>'
-    '<path fill="url(#aistudio-grad)" d="M12 2 Q12 8 22 12 Q16 12 12 22 Q12 16 2 12 Q8 12 12 2 Z"/>'
-    '</svg>'
+    '<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="24" height="24" aria-hidden="true">'
+    '<g transform="translate(-83.74 -83.7) scale(3.99734)">'
+    '<defs>'
+    '<linearGradient id="aistudio-g1" x1="50" x2="102" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#00B95C"/><stop offset="1" stop-color="#3186FF"/></linearGradient>'
+    '<linearGradient id="aistudio-g2" x1="140" x2="172" y1="96" y2="152" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FBBC04"/><stop offset=".45" stop-color="#FA7A28"/><stop offset="1" stop-color="#FC413D"/></linearGradient>'
+    '<linearGradient id="aistudio-g3" x1="97" x2="141" y1="146.6" y2="133" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#3186FF"/><stop offset=".25" stop-color="#3186FF" stop-opacity=".85"/><stop offset="1" stop-color="#3186FF" stop-opacity="0"/></linearGradient>'
+    '<radialGradient id="aistudio-g4" cx="92" cy="102" r="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#D2E03C"/><stop offset=".4" stop-color="#7FCF55" stop-opacity=".95"/><stop offset="1" stop-color="#00B95C" stop-opacity="0"/></radialGradient>'
+    '</defs>'
+    '<path fill="url(#aistudio-g1)" d="M161.23 55.76 79.92 98.11C53.06 112.1 21.01 92.5 21.01 62.08c0-22.42 18.08-40.59 40.37-40.58l91.57.04c18.88 0 25.04 25.5 8.28 34.22"/>'
+    '<path fill="url(#aistudio-g4)" d="M161.23 55.76 79.92 98.11C53.06 112.1 21.01 92.5 21.01 62.08c0-22.42 18.08-40.59 40.37-40.58l91.57.04c18.88 0 25.04 25.5 8.28 34.22"/>'
+    '<path fill="url(#aistudio-g2)" d="m30.77 136.24 81.31-42.35c26.86-13.99 58.91 5.61 58.91 36.03 0 22.42-18.08 40.59-40.37 40.58l-91.57-.04c-18.88 0-25.04-25.5-8.28-34.22"/>'
+    '<path fill="url(#aistudio-g3)" d="m30.77 136.24 81.31-42.35c26.86-13.99 58.91 5.61 58.91 36.03 0 22.42-18.08 40.59-40.37 40.58l-91.57-.04c-18.88 0-25.04-25.5-8.28-34.22"/>'
+    '</g></svg>'
 )
 
 OPENCLAW_ICON_SVG = (

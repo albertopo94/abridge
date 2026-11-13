@@ -26,4 +26,11 @@ Integrate Google AI Studio's Interactions API as a fifth model provider in Abrid
 - **L2** (2026-11-13, user design decisions): `abridge auth aistudio` for Keychain credential management; publish all 3 models (`gemini-4-hydrogen`, `gemini-3.8-flash`, `gemini-4-argon`) with `gemini-4-hydrogen` as default; expose effort-suffixed tiers in client selectors matching Antigravity CLI.
 - **L3** (2026-11-13, user): "si" (green light to implement design).
 - **L4** (2026-11-13, implemented): T1–T5 committed as cohesive work units (`a43fc2e`, `8d065e1`, `c0a5f4a`, `c733c79`, `91c7145`) on `feature/aistudio-upstream`. Slice boundary noted (multi-module upstream feature: auth, HTTP client, cache, 3-protocol transformers, server routing, dashboard, setup presets). Full suite: 1295 tests passing, `ruff check` 0 errors, `mypy bridge/` 0 errors across 46 source files. Differential check on `setup-claude`, `setup-codex`, `setup-openclaw`, `setup-pi` (`--provider agy`) matches `main` cleanly.
-- **L5** (2026-11-13, live Keychain status): `python3 -m bridge auth aistudio status` returned `not_configured` (`exit=1`) — live Google Keychain & Hydrogen E2E probe pending user running `abridge auth aistudio` interactively to store their Gemini API key.
+- **L5** (2026-11-13, live Keychain verified): User ran `python3 -m bridge auth aistudio` interactively; key stored in macOS Keychain (`service=abridge-aistudio`, `account=api-key`) and verified live against Google (`Status: verified — Google AI Studio accepted the API key.`).
+- **L6** (2026-11-13, user decision): Defer the 3 UX discovery improvements to the next session (context limit) and publish `v0.39.0` to GitHub (`main` + release).
+
+## Follow-up (Next Session TODO)
+
+1. **Dashboard left card (`aistudio-quota-card`)**: When `not_configured` or `rejected`, show the direct creation URL `https://aistudio.google.com/api-keys` alongside `abridge auth aistudio`.
+2. **Dashboard right client cards (`AI Studio` provider tab)**: Add a `⚠️` notice (`AISTUDIO_KEY_TIP_EN` / `AISTUDIO_KEY_TIP_ES`) above the snippet/command reminding users to create a Gemini API key at `https://aistudio.google.com/api-keys` and run `abridge auth aistudio` (matching Cursor/Junie/FreeLLMAPI tabs).
+3. **CLI setup flow (`abridge setup-* --provider aistudio`)**: Check `AistudioKeychainProvider().has_api_key()` (metadata-only, never reading the secret); if not yet configured, print a clear terminal hint pointing to `https://aistudio.google.com/api-keys` and `abridge auth aistudio`.

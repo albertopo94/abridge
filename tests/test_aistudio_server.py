@@ -571,84 +571,158 @@ class TestAistudioServerEndpoints(unittest.TestCase):
             srv.server_close()
 
     def test_chat_anonymous_multi_tool_then_text_then_replay(self) -> None:
-        """Reproduces the real 409 case: several tool turns, a final text turn,
-        then a new request replaying full history WITHOUT session-id."""
+        """Reproduces the real 409 case with streaming everywhere: two tool turns
+        (3 parallel tool calls each), a final text turn, then a new request
+        replaying the ENTIRE history WITHOUT session-id.
+
+        Each turn streams (stream=True); the final two turns must replay the
+        reconstructed SSE steps (thought signature + function_call + function_result)
+        so the streamed reply is byte-correct, exactly like the real reproduction.
+        """
         srv, _, client, _ = self._start_server()
         try:
             port = srv.server_address[1]
-            # Turn 1: requires_action, one tool
+            tools3 = [
+                {"type": "function", "function": {"name": "fn_a", "parameters": {"type": "object"}}},
+                {"type": "function", "function": {"name": "fn_b", "parameters": {"type": "object"}}},
+                {"type": "function", "function": {"name": "fn_c", "parameters": {"type": "object"}}},
+            ]
+            # Turn 1: requires_action, THREE parallel tool calls, streaming.
             client.next_streams.append([
                 {"event_type": "step.start", "index": 0, "step": {"type": "thought"}},
                 {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_signature", "signature": "sig_t1"}},
                 {"event_type": "step.stop", "index": 0},
-                {"event_type": "step.start", "index": 1, "step": {"type": "function_call", "id": "toolu_a", "name": "fn_a", "arguments": {}}},
+                {"event_type": "step.start", "index": 1, "step": {"type": "function_call", "id": "toolu_1a", "name": "fn_a", "arguments": {}}},
                 {"event_type": "step.delta", "index": 1, "delta": {"type": "arguments_delta", "arguments": '{"a":1}'}},
                 {"event_type": "step.stop", "index": 1},
+                {"event_type": "step.start", "index": 2, "step": {"type": "function_call", "id": "toolu_1b", "name": "fn_b", "arguments": {}}},
+                {"event_type": "step.delta", "index": 2, "delta": {"type": "arguments_delta", "arguments": '{"b":2}'}},
+                {"event_type": "step.stop", "index": 2},
+                {"event_type": "step.start", "index": 3, "step": {"type": "function_call", "id": "toolu_1c", "name": "fn_c", "arguments": {}}},
+                {"event_type": "step.delta", "index": 3, "delta": {"type": "arguments_delta", "arguments": '{"c":3}'}},
+                {"event_type": "step.stop", "index": 3},
                 {"event_type": "interaction.requires_action", "interaction": {"id": "int_t1", "status": "requires_action"}},
             ])
-            c1, _ = self._request(port, "POST", "/v1/chat/completions", {
+            c1, sse1 = self._request(port, "POST", "/v1/chat/completions", {
                 "model": "aistudio/gemini-4-hydrogen-high", "stream": True,
-                "tools": [{"type": "function", "function": {"name": "fn_a", "parameters": {"type": "object"}}}],
-                "messages": [{"role": "user", "content": "do a"}],
+                "tools": tools3,
+                "messages": [{"role": "user", "content": "do a, b, c"}],
             })
             self.assertEqual(c1, 200)
-            # Turn 2: resolve turn 1 + tool result -> requires_action (another tool)
+            self.assertIn('"call_1a"', sse1)
+            self.assertIn('"call_1b"', sse1)
+            self.assertIn('"call_1c"', sse1)
+            # Turn 2: resolve turn 1 + three tool results -> requires_action (three more calls), streaming.
             client.next_streams.append([
                 {"event_type": "step.start", "index": 0, "step": {"type": "thought"}},
                 {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_signature", "signature": "sig_t2"}},
                 {"event_type": "step.stop", "index": 0},
-                {"event_type": "step.start", "index": 1, "step": {"type": "function_call", "id": "toolu_b", "name": "fn_b", "arguments": {}}},
-                {"event_type": "step.delta", "index": 1, "delta": {"type": "arguments_delta", "arguments": '{"b":2}'}},
+                {"event_type": "step.start", "index": 1, "step": {"type": "function_call", "id": "toolu_2a", "name": "fn_a", "arguments": {}}},
+                {"event_type": "step.delta", "index": 1, "delta": {"type": "arguments_delta", "arguments": '{"a":4}'}},
                 {"event_type": "step.stop", "index": 1},
+                {"event_type": "step.start", "index": 2, "step": {"type": "function_call", "id": "toolu_2b", "name": "fn_b", "arguments": {}}},
+                {"event_type": "step.delta", "index": 2, "delta": {"type": "arguments_delta", "arguments": '{"b":5}'}},
+                {"event_type": "step.stop", "index": 2},
+                {"event_type": "step.start", "index": 3, "step": {"type": "function_call", "id": "toolu_2c", "name": "fn_c", "arguments": {}}},
+                {"event_type": "step.delta", "index": 3, "delta": {"type": "arguments_delta", "arguments": '{"c":6}'}},
+                {"event_type": "step.stop", "index": 3},
                 {"event_type": "interaction.requires_action", "interaction": {"id": "int_t2", "status": "requires_action"}},
             ])
-            c2, _ = self._request(port, "POST", "/v1/chat/completions", {
+            c2, sse2 = self._request(port, "POST", "/v1/chat/completions", {
                 "model": "aistudio/gemini-4-hydrogen-high", "stream": True,
-                "tools": [{"type": "function", "function": {"name": "fn_a", "parameters": {"type": "object"}}}, {"type": "function", "function": {"name": "fn_b", "parameters": {"type": "object"}}}],
+                "tools": tools3,
                 "messages": [
-                    {"role": "user", "content": "do a"},
-                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}}]},
-                    {"role": "tool", "tool_call_id": "call_a", "content": "ra"},
+                    {"role": "user", "content": "do a, b, c"},
+                    {"role": "assistant", "content": None, "tool_calls": [
+                        {"id": "call_1a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}},
+                        {"id": "call_1b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":2}'}},
+                        {"id": "call_1c", "type": "function", "function": {"name": "fn_c", "arguments": '{"c":3}'}},
+                    ]},
+                    {"role": "tool", "tool_call_id": "call_1a", "content": "ra"},
+                    {"role": "tool", "tool_call_id": "call_1b", "content": "rb"},
+                    {"role": "tool", "tool_call_id": "call_1c", "content": "rc"},
                 ],
             })
             self.assertEqual(c2, 200)
-            # Turn 3: resolve turns 1+2 + tool result -> final text completed
-            client.next_interactions.append({
-                "id": "int_t3", "status": "completed",
-                "steps": [{"type": "model_output", "content": [{"type": "text", "text": "final text"}]}],
-            })
-            c3, b3 = self._request(port, "POST", "/v1/chat/completions", {
-                "model": "aistudio/gemini-4-hydrogen-high",
-                "tools": [{"type": "function", "function": {"name": "fn_a", "parameters": {"type": "object"}}}, {"type": "function", "function": {"name": "fn_b", "parameters": {"type": "object"}}}],
+            self.assertIn('"call_2a"', sse2)
+            self.assertIn('"call_2b"', sse2)
+            self.assertIn('"call_2c"', sse2)
+            # Turn 3: resolve turns 1+2 + three tool results -> final text completed, streaming.
+            client.next_streams.append([
+                {"event_type": "step.start", "index": 0, "step": {"type": "thought"}},
+                {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_signature", "signature": "sig_t3"}},
+                {"event_type": "step.stop", "index": 0},
+                {"event_type": "step.start", "index": 1, "step": {"type": "model_output", "content": []}},
+                {"event_type": "step.delta", "index": 1, "delta": {"type": "text", "text": "final text"}},
+                {"event_type": "step.stop", "index": 1},
+                {"event_type": "interaction.completed", "interaction": {"id": "int_t3", "status": "completed"}},
+            ])
+            c3, sse3 = self._request(port, "POST", "/v1/chat/completions", {
+                "model": "aistudio/gemini-4-hydrogen-high", "stream": True,
+                "tools": tools3,
                 "messages": [
-                    {"role": "user", "content": "do a"},
-                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}}]},
-                    {"role": "tool", "tool_call_id": "call_a", "content": "ra"},
-                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":2}'}}]},
-                    {"role": "tool", "tool_call_id": "call_b", "content": "rb"},
+                    {"role": "user", "content": "do a, b, c"},
+                    {"role": "assistant", "content": None, "tool_calls": [
+                        {"id": "call_1a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}},
+                        {"id": "call_1b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":2}'}},
+                        {"id": "call_1c", "type": "function", "function": {"name": "fn_c", "arguments": '{"c":3}'}},
+                    ]},
+                    {"role": "tool", "tool_call_id": "call_1a", "content": "ra"},
+                    {"role": "tool", "tool_call_id": "call_1b", "content": "rb"},
+                    {"role": "tool", "tool_call_id": "call_1c", "content": "rc"},
+                    {"role": "assistant", "content": None, "tool_calls": [
+                        {"id": "call_2a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":4}'}},
+                        {"id": "call_2b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":5}'}},
+                        {"id": "call_2c", "type": "function", "function": {"name": "fn_c", "arguments": '{"c":6}'}},
+                    ]},
+                    {"role": "tool", "tool_call_id": "call_2a", "content": "ra"},
+                    {"role": "tool", "tool_call_id": "call_2b", "content": "rb"},
+                    {"role": "tool", "tool_call_id": "call_2c", "content": "rc"},
                 ],
             })
             self.assertEqual(c3, 200)
-            self.assertEqual(b3["choices"][0]["message"]["content"], "final text")
-            # Turn 4: replay ENTIRE history (3 tool+text turns) and resolve ALL
-            client.next_interactions.append({
-                "id": "int_t4", "status": "completed",
-                "steps": [{"type": "model_output", "content": [{"type": "text", "text": "next"}]}],
-            })
-            c4, b4 = self._request(port, "POST", "/v1/chat/completions", {
-                "model": "aistudio/gemini-4-hydrogen-high",
+            self.assertIn("final text", sse3)
+            # Turn 4: replay ENTIRE history (2 tool turns + final text) and resolve ALL, streaming.
+            client.next_streams.append([
+                {"event_type": "step.start", "index": 0, "step": {"type": "thought"}},
+                {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_signature", "signature": "sig_t4"}},
+                {"event_type": "step.stop", "index": 0},
+                {"event_type": "step.start", "index": 1, "step": {"type": "model_output", "content": []}},
+                {"event_type": "step.delta", "index": 1, "delta": {"type": "text", "text": "next"}},
+                {"event_type": "step.stop", "index": 1},
+                {"event_type": "interaction.completed", "interaction": {"id": "int_t4", "status": "completed"}},
+            ])
+            c4, sse4 = self._request(port, "POST", "/v1/chat/completions", {
+                "model": "aistudio/gemini-4-hydrogen-high", "stream": True,
+                "tools": tools3,
                 "messages": [
-                    {"role": "user", "content": "do a"},
-                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}}]},
-                    {"role": "tool", "tool_call_id": "call_a", "content": "ra"},
-                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":2}'}}]},
-                    {"role": "tool", "tool_call_id": "call_b", "content": "rb"},
+                    {"role": "user", "content": "do a, b, c"},
+                    {"role": "assistant", "content": None, "tool_calls": [
+                        {"id": "call_1a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}},
+                        {"id": "call_1b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":2}'}},
+                        {"id": "call_1c", "type": "function", "function": {"name": "fn_c", "arguments": '{"c":3}'}},
+                    ]},
+                    {"role": "tool", "tool_call_id": "call_1a", "content": "ra"},
+                    {"role": "tool", "tool_call_id": "call_1b", "content": "rb"},
+                    {"role": "tool", "tool_call_id": "call_1c", "content": "rc"},
+                    {"role": "assistant", "content": None, "tool_calls": [
+                        {"id": "call_2a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":4}'}},
+                        {"id": "call_2b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":5}'}},
+                        {"id": "call_2c", "type": "function", "function": {"name": "fn_c", "arguments": '{"c":6}'}},
+                    ]},
+                    {"role": "tool", "tool_call_id": "call_2a", "content": "ra"},
+                    {"role": "tool", "tool_call_id": "call_2b", "content": "rb"},
+                    {"role": "tool", "tool_call_id": "call_2c", "content": "rc"},
                     {"role": "assistant", "content": "final text"},
                     {"role": "user", "content": "and now?"},
                 ],
             })
             self.assertEqual(c4, 200)
-            self.assertEqual(b4["choices"][0]["message"]["content"], "next")
+            self.assertIn("next", sse4)
+            # Exactly four Interaction payloads must have been recorded, each with store=false.
+            self.assertEqual(len(client.recorded_payloads), 4)
+            for payload in client.recorded_payloads:
+                self.assertIs(payload["store"], False)
         finally:
             srv.shutdown()
             srv.server_close()

@@ -85,7 +85,7 @@ from bridge.aistudio_transform import (
     chat_to_aistudio_request,
     responses_to_aistudio_request,
 )
-from bridge.aistudio_diag import diag_log, message_fingerprints
+from bridge.aistudio_diag import diagnostics_enabled, diag_log, message_fingerprints
 
 import copy
 
@@ -865,7 +865,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             num_messages=len(_hist_list),
             roles=" ".join(str(m.get("role") or m.get("type") or "?") for m in _hist_list if isinstance(m, dict)),
             num_tools=len(payload.get("tools") or []),
-            msgs=message_fingerprints(_hist_list),
+            msgs=message_fingerprints(_hist_list) if diagnostics_enabled() else None,
         )
         prev_resp_id = payload.get("previous_response_id") if protocol == "openai_responses" else None
         if session_id:

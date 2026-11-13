@@ -32,6 +32,23 @@ def _should_check_availability(provider: str, check_availability: bool) -> bool:
     return str(provider or "").lower() in ("agy", "all", "todos")
 
 
+def _warn_if_aistudio_unconfigured(provider: str) -> None:
+    """Prints a Gemini API key hint when the configured providers include AI Studio.
+
+    Uses only Keychain metadata (never reads the secret). Skipped silently when
+    the provider is not aistudio/all/todos or when the key is already stored.
+    """
+    if str(provider or "").lower() not in ("aistudio", "all", "todos"):
+        return
+    try:
+        from bridge.aistudio_auth import AistudioKeychainProvider
+        if AistudioKeychainProvider().has_api_key():
+            return
+    except Exception:  # noqa: BLE001 - non-fatal; the setup itself already succeeded
+        return
+    print(t("setup_aistudio_key_hint"))
+
+
 def _report_availability(target: Any, queried: bool) -> None:
     """Prints catalog availability notices after a client config was written.
 
@@ -244,6 +261,7 @@ def handle_setup_claude(argv: list[str], prog_base: str, setup_fn: Any = None) -
     print(t("setup_claude_success", target=target))
     print(t("setup_claude_auto_read"))
     print(t("setup_claude_run_hint"))
+    _warn_if_aistudio_unconfigured(args.provider)
     return 0
 
 
@@ -304,6 +322,7 @@ def handle_setup_codex(argv: list[str], prog_base: str, setup_fn: Any = None) ->
     print(t("setup_codex_success", target=target))
     print(t("setup_codex_auto_read"))
     print(t("setup_codex_run_hint"))
+    _warn_if_aistudio_unconfigured(args.provider)
     return 0
 
 
@@ -364,6 +383,7 @@ def handle_setup_hermes(argv: list[str], prog_base: str, setup_fn: Any = None) -
     print(t("setup_hermes_success", target=target))
     print(t("setup_hermes_auto_read"))
     print(t("setup_hermes_run_hint"))
+    _warn_if_aistudio_unconfigured(args.provider)
     return 0
 
 
@@ -433,6 +453,7 @@ def handle_setup_opencode(argv: list[str], prog_base: str, setup_fn: Any = None)
     print(t("setup_opencode_auto_read"))
     print(t("setup_opencode_run_hint"))
     _report_availability(target, queried)
+    _warn_if_aistudio_unconfigured(args.provider)
     return 0
 
 
@@ -502,6 +523,7 @@ def handle_setup_openclaw(argv: list[str], prog_base: str, setup_fn: Any = None)
     print(t("setup_openclaw_auto_read"))
     print(t("setup_openclaw_run_hint"))
     _report_availability(target, queried)
+    _warn_if_aistudio_unconfigured(args.provider)
     return 0
 
 
@@ -646,6 +668,7 @@ def handle_setup_pi(argv: list[str], prog_base: str, setup_fn: Any = None) -> in
     else:
         print(t("setup_pi_set_default_done"))
     _report_availability(target, queried)
+    _warn_if_aistudio_unconfigured(args.provider)
     return 0
 
 
@@ -742,4 +765,5 @@ def handle_setup_gentle_shell(
     else:
         print(t("setup_gentle_shell_set_default_done"))
     _report_availability(target, queried)
+    _warn_if_aistudio_unconfigured(args.provider)
     return 0

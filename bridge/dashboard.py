@@ -253,7 +253,7 @@ AISTUDIO_ICON_SVG = (
     '<defs><linearGradient id="aistudio-grad" x1="0%" y1="0%" x2="100%" y2="100%">'
     '<stop offset="0%" stop-color="#4285F4"/><stop offset="55%" stop-color="#8E6BFF"/><stop offset="100%" stop-color="#F26B9A"/>'
     '</linearGradient></defs>'
-    '<path fill="url(#aistudio-grad)" d="M12 2L14.6 9.4L22 12L14.6 14.6L12 22L9.4 14.6L2 12L9.4 9.4Z"/>'
+    '<path fill="url(#aistudio-grad)" d="M12 2 Q12 8 22 12 Q16 12 12 22 Q12 16 2 12 Q8 12 12 2 Z"/>'
     '</svg>'
 )
 
@@ -305,6 +305,9 @@ CURSOR_FREE_TIP_ES = "En el plan Free de Cursor solo está disponible el modelo 
 
 JUNIE_FREE_TIP_EN = "On Junie's Free tier (Lite-only access), only 'junie/junie-lite' is available without JetBrains AI subscription or BYOK."
 JUNIE_FREE_TIP_ES = "En el plan Free de Junie (acceso Lite-only), solo 'junie/junie-lite' está disponible sin suscripción JetBrains AI o BYOK."
+
+AISTUDIO_KEY_TIP_EN = "Create a Gemini API key at https://aistudio.google.com/api-keys then run 'abridge auth aistudio' to store it in your macOS Keychain."
+AISTUDIO_KEY_TIP_ES = "Creá una Gemini API key en https://aistudio.google.com/api-keys y ejecutá 'abridge auth aistudio' para guardarla en tu Keychain de macOS."
 
 
 def _make_client_providers(
@@ -394,6 +397,8 @@ def _make_client_providers(
                 "id": "aistudio",
                 "label_en": "AI Studio",
                 "label_es": "AI Studio",
+                "warning_tip_en": AISTUDIO_KEY_TIP_EN,
+                "warning_tip_es": AISTUDIO_KEY_TIP_ES,
                 "auto_cmd": lambda addr: (
                     f"abridge setup-{client_id} --provider aistudio --model aistudio/gemini-4-hydrogen --port {addr.rsplit(':', 1)[1]}"
                     if ":" in addr and addr.rsplit(":", 1)[1].isdigit() and addr.rsplit(":", 1)[1] != "24980"
@@ -2606,6 +2611,16 @@ def render_dashboard(
         pre.appendChild(cmd);
         bodyEl.appendChild(miss);
         bodyEl.appendChild(pre);
+        var keyLink = document.createElement("div");
+        keyLink.className = "quota-footnote";
+        var linkA = document.createElement("a");
+        linkA.href = "https://aistudio.google.com/api-keys";
+        linkA.target = "_blank";
+        linkA.rel = "noopener noreferrer";
+        linkA.textContent = "https://aistudio.google.com/api-keys";
+        keyLink.appendChild(document.createTextNode("API key: "));
+        keyLink.appendChild(linkA);
+        bodyEl.appendChild(keyLink);
         return;
       }}
 
@@ -2634,6 +2649,23 @@ def render_dashboard(
       label2.textContent = (dict.aistudio_keychain_item || "Keychain: {{s}}").replace("{{s}}", String(data.service || "abridge-aistudio"));
       row2.appendChild(label2);
       bodyEl.appendChild(row2);
+
+      if (authStatus === "rejected") {{
+        var rejLink = document.createElement("div");
+        rejLink.className = "quota-footnote";
+        var rejA = document.createElement("a");
+        rejA.href = "https://aistudio.google.com/api-keys";
+        rejA.target = "_blank";
+        rejA.rel = "noopener noreferrer";
+        rejA.textContent = "https://aistudio.google.com/api-keys";
+        rejLink.appendChild(document.createTextNode("New API key: "));
+        rejLink.appendChild(rejA);
+        var rejCmd = document.createElement("code");
+        rejCmd.textContent = "abridge auth aistudio";
+        rejLink.appendChild(document.createTextNode(" · "));
+        rejLink.appendChild(rejCmd);
+        bodyEl.appendChild(rejLink);
+      }}
     }}
 
     function fetchAistudioStatus(verifyLive) {{

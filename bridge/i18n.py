@@ -226,6 +226,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Setup availability notices
         "setup_availability_unverified": "Notice: Model availability could not be verified (Antigravity catalog unreachable). The full model list was written.",
         "setup_models_skipped": "Skipped {count} model(s) not available for your Antigravity plan: {models}",
+        "setup_aistudio_key_hint": (
+            "⚠️ No AI Studio Gemini API key found in macOS Keychain. "
+            "Create one at https://aistudio.google.com/api-keys and run 'abridge auth aistudio' before using AI Studio models."
+        ),
         "cli_help_no_check_availability": "Write the full model preset without checking which models your plan serves",
     },
     "es": {
@@ -357,6 +361,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         # Avisos de disponibilidad de modelos
         "setup_availability_unverified": "Aviso: No se pudo verificar la disponibilidad de modelos (no se accedi\u00f3 al cat\u00e1logo de Antigravity). Se escribi\u00f3 la lista completa.",
         "setup_models_skipped": "Se omitieron {count} modelo(s) no disponibles para tu plan de Antigravity: {models}",
+        "setup_aistudio_key_hint": (
+            "⚠️ No se encontró una Gemini API key de AI Studio en el Keychain de macOS. "
+            "Creá una en https://aistudio.google.com/api-keys y ejecutá 'abridge auth aistudio' antes de usar los modelos de AI Studio."
+        ),
         "cli_help_no_check_availability": "Escribir el preset completo sin verificar qu\u00e9 modelos ofrece tu plan",
     },
 }

@@ -1691,7 +1691,7 @@ class TestUpdateInstallation(unittest.TestCase):
 
         self.assertEqual(result["status"], "updated")
         self.assertTrue(result["restarted_daemon"])
-        self.assertEqual(result["version"], "0.39.0")
+        self.assertEqual(result["version"], "0.39.1")
         mock_run.assert_called_once_with(
             ["git", "-C", str(self.repo_dir), "pull", "--ff-only"],
             capture_output=True,
@@ -2132,12 +2132,12 @@ class TestCLIUpdateAndVersion(unittest.TestCase):
         from pathlib import Path
         import re
 
-        self.assertEqual(bridge.__version__, "0.39.0")
+        self.assertEqual(bridge.__version__, "0.39.1")
         pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
         pyproject_text = pyproject_path.read_text(encoding="utf-8")
         match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_text)
         self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), "0.39.0")
+        self.assertEqual(match.group(1), "0.39.1")
 
     def test_config_path_instantiation_and_backup_attribute(self):
         from bridge.setup.base import ConfigPath
@@ -5635,7 +5635,7 @@ class TestInstallScript(unittest.TestCase):
         sentinel = self.state_dir / "core" / ".agy-bridge-installed"
         self.assertTrue(sentinel.exists())
         self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o600)
-        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.39.0")
+        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.39.1")
 
     def test_install_script_launcher_immune_to_cwd_hijacking(self):
         res = subprocess.run(
@@ -5874,6 +5874,37 @@ class TestMultiProviderSetup(unittest.TestCase):
         opts_all = [o["model"] for o in data_all["modelPicker"]["options"]]
         self.assertIn("cursor/auto", opts_all)
         self.assertIn("gemini-3.8-flash-high", opts_all)
+
+
+class TestAistudioSetupKeyHint(unittest.TestCase):
+    """S3: aistudio setup warns when the Gemini API key is not in Keychain."""
+
+    def _run_helper(self, provider, has_key):
+        import io
+        from bridge.cli.setup import _warn_if_aistudio_unconfigured
+
+        out = io.StringIO()
+        with unittest.mock.patch("bridge.aistudio_auth.AistudioKeychainProvider") as mock_cls:
+            mock_cls.return_value.has_api_key.return_value = has_key
+            with unittest.mock.patch("sys.stdout", out):
+                _warn_if_aistudio_unconfigured(provider)
+        return out.getvalue()
+
+    def test_no_hint_for_non_aistudio_provider(self):
+        self.assertEqual(self._run_helper("agy", False), "")
+        self.assertEqual(self._run_helper("cursor", False), "")
+
+    def test_no_hint_when_key_already_configured(self):
+        self.assertEqual(self._run_helper("aistudio", True), "")
+
+    def test_hint_when_key_missing(self):
+        output = self._run_helper("aistudio", False)
+        self.assertIn("https://aistudio.google.com/api-keys", output)
+        self.assertIn("abridge auth aistudio", output)
+
+    def test_hint_for_all_provider(self):
+        output = self._run_helper("all", False)
+        self.assertIn("https://aistudio.google.com/api-keys", output)
 
 
 if __name__ == "__main__":

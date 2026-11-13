@@ -1080,10 +1080,15 @@ class TestDashboardBilingual(unittest.TestCase):
         self.assertIn("On Cursor's Free plan, only 'cursor/auto' is available", html_en)
         self.assertIn("On Junie's Free tier (Lite-only access), only 'junie/junie-lite' is available", html_en)
 
+        # AI Studio tab shows the Gemini API key onboarding tip
+        self.assertIn("Create a Gemini API key at https://aistudio.google.com/api-keys", html_en)
+        self.assertIn("abridge auth aistudio", html_en)
+
         # Spanish translation
         html_es = render_dashboard("127.0.0.1", 24980, auth_status, models_count=10, lang="es")
         self.assertIn("En el plan Free de Cursor solo está disponible el modelo 'cursor/auto'", html_es)
         self.assertIn("En el plan Free de Junie (acceso Lite-only), solo 'junie/junie-lite' está disponible", html_es)
+        self.assertIn("Creá una Gemini API key en https://aistudio.google.com/api-keys", html_es)
         self.assertIn(">Todos</button>", html_es)
 
 
@@ -1197,6 +1202,13 @@ class TestAistudioQuotaTab(unittest.TestCase):
             "aistudio_no_quota_note",
         ):
             self.assertIn(key, html)
+
+    def test_aistudio_card_links_to_api_keys_creation_url(self):
+        """S1: the credential-status renderer points to the Gemini API keys page."""
+        html = self._render()
+        self.assertIn('href = "https://aistudio.google.com/api-keys";', html)
+        self.assertIn('linkA.textContent = "https://aistudio.google.com/api-keys";', html)
+        self.assertIn('rejA.href = "https://aistudio.google.com/api-keys";', html)
 
 
 class TestAgyAvailabilityBadge(unittest.TestCase):

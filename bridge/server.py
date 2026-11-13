@@ -23,13 +23,14 @@ from bridge.errors import (
     BridgeError,
     CapacityExhaustedError,
     ForbiddenError,
+    InteractionStateError,
     InvalidRequestError,
     ModelNotFoundError,
     RateLimitError,
     UpstreamTimeoutError,
     UpstreamError,
 )
-from bridge.events import parse_stream_event
+from bridge.events import StreamEvent, parse_stream_event
 from bridge.transform import (
     parse_cloudcode_sse_event,
     build_openai_model_list,
@@ -72,6 +73,19 @@ from bridge.junie_backend import (
     is_junie_model,
     resolve_junie_model,
 )
+from bridge.aistudio_backend import (
+    AistudioBackend,
+    AistudioStepAssembler,
+    is_aistudio_model,
+)
+from bridge.aistudio_cache import InteractionStepCache
+from bridge.aistudio_client import AistudioStreamMetrics
+from bridge.aistudio_transform import (
+    anthropic_to_aistudio_request,
+    chat_to_aistudio_request,
+    responses_to_aistudio_request,
+)
+import copy
 
 SAFE_REQUEST_ID_REGEX = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
@@ -106,6 +120,8 @@ class ServerContext:
     cursor_backend: Any | None = None
     opencode_backend: Any | None = None
     junie_backend: Any | None = None
+    aistudio_backend: Any | None = None
+    aistudio_cache: InteractionStepCache | None = None
 
 
 @dataclass
@@ -123,6 +139,8 @@ _default_cursor_quota_provider: CursorQuotaProvider | None = None
 _default_cursor_backend: CursorBackend | None = None
 _default_opencode_backend: OpencodeBackend | None = None
 _default_junie_backend: JunieBackend | None = None
+_default_aistudio_backend: AistudioBackend | None = None
+_default_aistudio_cache: InteractionStepCache | None = None
 
 
 def _sanitize_thought_signatures(contents: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -161,6 +179,8 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
     cursor_backend: Any | None = None
     opencode_backend: Any | None = None
     junie_backend: Any | None = None
+    aistudio_backend: Any | None = None
+    aistudio_cache: InteractionStepCache | None = None
     server: Any = None
     request_id: str = ""
     command: str = ""
@@ -279,6 +299,36 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             _default_junie_backend = JunieBackend()
         return _default_junie_backend
 
+    def _get_aistudio_backend(self) -> AistudioBackend:
+        if self.aistudio_backend is not None:
+            return self.aistudio_backend
+        if self.context is not None and self.context.aistudio_backend is not None:
+            return self.context.aistudio_backend
+        if self.server is not None:
+            if hasattr(self.server, "context") and getattr(self.server.context, "aistudio_backend", None) is not None:
+                return self.server.context.aistudio_backend
+            if hasattr(self.server, "aistudio_backend") and self.server.aistudio_backend is not None:
+                return self.server.aistudio_backend
+        global _default_aistudio_backend
+        if _default_aistudio_backend is None:
+            _default_aistudio_backend = AistudioBackend()
+        return _default_aistudio_backend
+
+    def _get_aistudio_cache(self) -> InteractionStepCache:
+        if self.aistudio_cache is not None:
+            return self.aistudio_cache
+        if self.context is not None and self.context.aistudio_cache is not None:
+            return self.context.aistudio_cache
+        if self.server is not None:
+            if hasattr(self.server, "context") and getattr(self.server.context, "aistudio_cache", None) is not None:
+                return self.server.context.aistudio_cache
+            if hasattr(self.server, "aistudio_cache") and self.server.aistudio_cache is not None:
+                return self.server.aistudio_cache
+        global _default_aistudio_cache
+        if _default_aistudio_cache is None:
+            _default_aistudio_cache = InteractionStepCache()
+        return _default_aistudio_cache
+
     @contextlib.contextmanager
     def _acquire_concurrency(self) -> Iterator[bool]:
         sem = self._get_semaphore()
@@ -386,7 +436,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             return
 
         parsed_path = urllib.parse.urlparse(self.path).path
-        if parsed_path.startswith("/v1/") or parsed_path in ("/", "/api/status", "/api/quota", "/api/cursor/quota", "/api/opencode/status", "/api/junie/status"):
+        if parsed_path.startswith("/v1/") or parsed_path in ("/", "/api/status", "/api/quota", "/api/cursor/quota", "/api/opencode/status", "/api/junie/status", "/api/aistudio/status"):
             # Inference and admin endpoints forbid browser cross-origin preflight requests
             self.send_response(403)
             self.send_header("X-Request-ID", self.request_id)
@@ -417,7 +467,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("X-Request-ID", self.request_id)
         req_path = urllib.parse.urlparse(self.path).path
-        if not req_path.startswith("/v1/") and req_path not in ("/", "/api/status", "/api/quota", "/api/cursor/quota", "/api/opencode/status", "/api/junie/status"):
+        if not req_path.startswith("/v1/") and req_path not in ("/", "/api/status", "/api/quota", "/api/cursor/quota", "/api/opencode/status", "/api/junie/status", "/api/aistudio/status"):
             self.send_header("Access-Control-Allow-Origin", "*")
         sent_connection = False
         if headers:
@@ -443,6 +493,8 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             return 403, "permission_denied"
         if isinstance(exc, ModelNotFoundError):
             return 404, "invalid_request_error"
+        if isinstance(exc, InteractionStateError):
+            return 409, exc.code
         if isinstance(exc, RateLimitError):
             return 429, "rate_limit_error"
         if isinstance(exc, CapacityExhaustedError):
@@ -570,6 +622,19 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                 self._send_error(exc)
             return
 
+        if path == "/api/aistudio/status":
+            try:
+                query_params = urllib.parse.parse_qs(parsed.query)
+                verify_live = any(
+                    k in query_params and query_params[k][0].lower() in ("1", "true")
+                    for k in ("verify", "refresh")
+                )
+                a_backend = self._get_aistudio_backend()
+                self._send_json(200, a_backend.status(verify_live=verify_live))
+            except Exception as exc:
+                self._send_error(exc)
+            return
+
         if path == "/healthz":
             self._send_json(
                 200,
@@ -587,7 +652,10 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                 self._send_json(code, err)
                 return
             try:
-                models = list(self.client.fetch_available_models(self.project))
+                if self.antigravity_available:
+                    models = list(self.client.fetch_available_models(self.project))
+                else:
+                    models = []
                 try:
                     c_backend = self._get_cursor_backend()
                     if c_backend is not None:
@@ -606,6 +674,12 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                         models.extend(j_backend.list_models())
                 except Exception as j_err:
                     sys.stderr.write(f"Warning: failed to query Junie models: {j_err}\n")
+                try:
+                    a_backend = self._get_aistudio_backend()
+                    if a_backend is not None:
+                        models.extend(a_backend.list_models())
+                except Exception as a_err:
+                    sys.stderr.write(f"Warning: failed to query AI Studio models: {a_err}\n")
                 resp_data = build_openai_model_list(models)
                 self._send_json(200, resp_data)
             except Exception as exc:
@@ -747,6 +821,367 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             self._handle_anthropic_messages(payload)
         elif path == "/v1/responses":
             self._handle_responses(payload)
+
+    def _get_aistudio_session_id(self) -> str | None:
+        if not self.headers:
+            return None
+        val = self.headers.get("x-abridge-session-id")
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+        return None
+
+    def _public_tool_call_id(self, protocol: str, native_id: str) -> str:
+        if protocol == "openai_chat" and native_id.startswith("toolu_"):
+            return f"call_{native_id[6:]}"
+        return native_id
+
+    def _dispatch_aistudio_protocol(
+        self,
+        *,
+        protocol: str,
+        payload: dict[str, Any],
+        model_label: str,
+        transform_fn: Any,
+        stream_builder: Any,
+        response_builder: Any,
+        error_sender: Any,
+        stream_error_formatter: Any = None,
+        response_id: str | None = None,
+    ) -> None:
+        self._ensure_request_id()
+        session_id = self._get_aistudio_session_id()
+        cache = self._get_aistudio_cache()
+        prev_resp_id = payload.get("previous_response_id") if protocol == "openai_responses" else None
+        if session_id:
+            lock_key = f"sid:{protocol}:{session_id}"
+        elif isinstance(prev_resp_id, str) and prev_resp_id.strip():
+            lock_key = f"resp:{prev_resp_id.strip()}"
+        else:
+            lock_key = ""
+
+        lock_ctx = cache.session_lock(lock_key) if lock_key else contextlib.nullcontext()
+        with self._acquire_concurrency() as acquired:
+            if not acquired:
+                return
+            with lock_ctx:
+                try:
+                    req = transform_fn(payload, cache=cache, session_id=session_id)
+                except ValueError as ve:
+                    error_sender(InvalidRequestError(str(ve)))
+                    return
+                except Exception as exc:
+                    error_sender(exc)
+                    return
+
+                backend = self._get_aistudio_backend()
+                stream = bool(payload.get("stream", False))
+                max_retries = self.max_retries if self.context is None else self.context.max_retries
+                initial_delay = self.initial_retry_delay if self.context is None else self.context.initial_retry_delay
+
+                if not stream:
+                    try:
+                        events: list[StreamEvent] = []
+                        raw_steps: list[dict[str, Any]] = []
+                        status = "completed"
+                        for attempt in range(max_retries + 1):
+                            try:
+                                events, raw_steps, status = backend.run_non_streaming(req.payload)
+                                break
+                            except (RateLimitError, CapacityExhaustedError):
+                                if attempt < max_retries:
+                                    delay = min(4.0, initial_delay * (2 ** attempt)) + random.uniform(0.01, 0.05)
+                                    time.sleep(delay)
+                                    continue
+                                raise
+
+                        if status not in ("completed", "requires_action"):
+                            raise BridgeError(f"AI Studio interaction finished with non-terminal status '{status}'")
+
+                        text_parts: list[str] = []
+                        thought_parts: list[str] = []
+                        collected_tool_calls: list[dict[str, Any]] = []
+                        visible_tool_calls: list[dict[str, Any]] = []
+                        call_id_map: dict[str, str] = {}
+                        last_usage: dict[str, int] | None = None
+                        last_finish_reason = "stop"
+                        latest_sig: str | None = None
+
+                        for ev in events:
+                            if ev.thought_signature:
+                                latest_sig = ev.thought_signature
+                            if ev.usage:
+                                last_usage = ev.usage.to_dict()
+                            if ev.finish_reason:
+                                last_finish_reason = ev.finish_reason
+                            if ev.delta_thought:
+                                thought_parts.append(ev.delta_thought)
+                            if ev.delta_text:
+                                text_parts.append(ev.delta_text)
+                            if ev.tool_calls:
+                                for tc in ev.tool_calls:
+                                    pub_id = self._public_tool_call_id(protocol, tc.id)
+                                    call_id_map[pub_id] = tc.id
+                                    tc_dict = tc.to_dict()
+                                    tc_dict["id"] = pub_id
+                                    collected_tool_calls.append(tc_dict)
+                                    visible_tool_calls.append({
+                                        "id": pub_id,
+                                        "name": tc.name,
+                                        "arguments": copy.deepcopy(tc.args),
+                                    })
+
+                        collected = CollectedStreamData(
+                            text="".join(text_parts),
+                            tool_calls=collected_tool_calls,
+                            usage=last_usage,
+                            finish_reason=last_finish_reason,
+                            thoughts="".join(thought_parts),
+                            thought_signature=latest_sig,
+                        )
+                        resp_obj = response_builder(collected)
+                        asst_visible = {"text": collected.text, "tool_calls": visible_tool_calls}
+                        cache.record_turn(
+                            protocol=protocol,
+                            official_model=req.official_model,
+                            prefix_items=req.prefix_items,
+                            assistant_visible=asst_visible,
+                            raw_steps=raw_steps,
+                            call_id_map=call_id_map,
+                            session_id=session_id,
+                            response_id=response_id,
+                            full_steps_snapshot=list(req.payload.get("input", [])) + raw_steps,
+                            canonical_history=list(req.canonical_history) + [asst_visible],
+                            request_hash=req.request_hash,
+                        )
+                        self._send_json(200, resp_obj)
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
+                    except Exception as exc:
+                        error_sender(exc)
+                    return
+
+                # Streaming mode: pre-pull first event before emitting HTTP 200
+                assembler = AistudioStepAssembler()
+                metrics = AistudioStreamMetrics()
+                ev_iter: Any = None
+                first_ev: StreamEvent | None = None
+                try:
+                    for attempt in range(max_retries + 1):
+                        assembler = AistudioStepAssembler()
+                        metrics = AistudioStreamMetrics()
+                        ev_iter = backend.iter_stream_events(req.payload, assembler=assembler, metrics=metrics)
+                        try:
+                            first_ev = next(ev_iter)
+                            break
+                        except StopIteration:
+                            first_ev = None
+                            break
+                        except (RateLimitError, CapacityExhaustedError):
+                            if hasattr(ev_iter, "close"):
+                                with contextlib.suppress(Exception):
+                                    ev_iter.close()
+                            if attempt < max_retries:
+                                delay = min(4.0, initial_delay * (2 ** attempt)) + random.uniform(0.01, 0.05)
+                                time.sleep(delay)
+                                continue
+                            raise
+                        except Exception:
+                            if hasattr(ev_iter, "close"):
+                                with contextlib.suppress(Exception):
+                                    ev_iter.close()
+                            raise
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+                except Exception as exc:
+                    error_sender(exc)
+                    return
+
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "close")
+                self.send_header("X-Request-ID", self.request_id)
+                self.end_headers()
+
+                text_parts = []
+                visible_tool_calls = []
+                call_id_map = {}
+
+                def _tap_events() -> Iterator[StreamEvent]:
+                    combined = itertools.chain([first_ev] if first_ev is not None else [], ev_iter)
+                    for ev in combined:
+                        if ev is None:
+                            continue
+                        if ev.delta_text:
+                            text_parts.append(ev.delta_text)
+                        if ev.tool_calls:
+                            for tc in ev.tool_calls:
+                                pub_id = self._public_tool_call_id(protocol, tc.id)
+                                call_id_map[pub_id] = tc.id
+                                visible_tool_calls.append({
+                                    "id": pub_id,
+                                    "name": tc.name,
+                                    "arguments": copy.deepcopy(tc.args),
+                                })
+                        yield ev
+
+                stream_ok = False
+                try:
+                    for chunk_str in stream_builder(_tap_events()):
+                        self.wfile.write(chunk_str.encode("utf-8") if isinstance(chunk_str, str) else chunk_str)
+                        self.wfile.flush()
+                    stream_ok = True
+                except (BrokenPipeError, ConnectionResetError):
+                    stream_ok = False
+                except Exception as exc:
+                    stream_ok = False
+                    sys.stderr.write(f"Error during AI Studio stream: {exc}\n")
+                    sys.stderr.flush()
+                    if stream_error_formatter is not None:
+                        with contextlib.suppress(Exception):
+                            err_payload = stream_error_formatter(exc)
+                            if err_payload:
+                                self.wfile.write(err_payload.encode("utf-8") if isinstance(err_payload, str) else err_payload)
+                                self.wfile.flush()
+                finally:
+                    if ev_iter is not None and hasattr(ev_iter, "close"):
+                        with contextlib.suppress(Exception):
+                            ev_iter.close()
+                    self.close_connection = True
+
+                # Only commit to InteractionStepCache if stream ended cleanly in terminal state
+                if stream_ok and assembler.terminal_reached and assembler.final_status in ("completed", "requires_action"):
+                    raw_steps = assembler.raw_steps
+                    asst_visible = {"text": "".join(text_parts), "tool_calls": visible_tool_calls}
+                    cache.record_turn(
+                        protocol=protocol,
+                        official_model=req.official_model,
+                        prefix_items=req.prefix_items,
+                        assistant_visible=asst_visible,
+                        raw_steps=raw_steps,
+                        call_id_map=call_id_map,
+                        session_id=session_id,
+                        response_id=response_id,
+                        full_steps_snapshot=list(req.payload.get("input", [])) + raw_steps,
+                        canonical_history=list(req.canonical_history) + [asst_visible],
+                        request_hash=req.request_hash,
+                    )
+
+    def _handle_aistudio_chat_completion(self, payload: dict[str, Any]) -> None:
+        model = str(payload.get("model") or "aistudio/gemini-4-hydrogen")
+        completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
+
+        def chat_stream_error(exc: Exception) -> str:
+            err_code, err_type = self._get_error_details(exc)
+            err_payload = json.dumps({"error": {"message": str(exc), "type": err_type, "code": err_code}})
+            return f"data: {err_payload}\n\n"
+
+        def chat_response_builder(collected: CollectedStreamData) -> dict[str, Any]:
+            formatted_tool_calls = None
+            finish_reason = collected.finish_reason
+            if collected.tool_calls:
+                finish_reason = "tool_calls"
+                formatted_tool_calls = []
+                for fc in collected.tool_calls:
+                    tc_id = fc.get("id") or f"call_{uuid.uuid4().hex[:12]}"
+                    args = fc.get("args", {})
+                    args_str = json.dumps(args) if isinstance(args, (dict, list)) else str(args or "{}")
+                    tc_obj: dict[str, Any] = {
+                        "id": tc_id,
+                        "type": "function",
+                        "function": {"name": fc.get("name", ""), "arguments": args_str},
+                    }
+                    formatted_tool_calls.append(tc_obj)
+            return OpenAIProtocolAdapter.build_response(
+                completion_id=completion_id,
+                model=model,
+                text=collected.text,
+                usage=collected.usage,
+                finish_reason=finish_reason,
+                tool_calls=formatted_tool_calls,
+            )
+
+        self._dispatch_aistudio_protocol(
+            protocol="openai_chat",
+            payload=payload,
+            model_label=model,
+            transform_fn=chat_to_aistudio_request,
+            stream_builder=lambda gen: OpenAIProtocolAdapter.build_stream(gen, model, completion_id=completion_id),
+            response_builder=chat_response_builder,
+            error_sender=self._send_error,
+            stream_error_formatter=chat_stream_error,
+        )
+
+    def _handle_aistudio_messages(self, payload: dict[str, Any]) -> None:
+        model = str(payload.get("model") or "aistudio/gemini-4-hydrogen")
+        msg_id = f"msg_{uuid.uuid4().hex[:16]}"
+
+        def anthropic_stream_error(exc: Exception) -> str:
+            _, err_type = self._get_error_details(exc)
+            err_payload = json.dumps({"type": "error", "error": {"type": err_type, "message": str(exc)}})
+            return f"event: error\ndata: {err_payload}\n\n"
+
+        def anthropic_response_builder(collected: CollectedStreamData) -> dict[str, Any]:
+            stop_reason = "end_turn"
+            if collected.finish_reason in ("length", "max_tokens"):
+                stop_reason = "max_tokens"
+            elif collected.finish_reason in ("stop_sequence", "tool_use"):
+                stop_reason = collected.finish_reason
+            if collected.tool_calls:
+                stop_reason = "tool_use"
+            return AnthropicProtocolAdapter.build_response(
+                message_id=msg_id,
+                model=model,
+                text=collected.text,
+                usage=collected.usage,
+                stop_reason=stop_reason,
+                tool_calls=collected.tool_calls if collected.tool_calls else None,
+                thought=collected.thoughts if collected.thoughts else None,
+                thought_signature=collected.thought_signature,
+            )
+
+        self._dispatch_aistudio_protocol(
+            protocol="anthropic",
+            payload=payload,
+            model_label=model,
+            transform_fn=anthropic_to_aistudio_request,
+            stream_builder=lambda gen: AnthropicProtocolAdapter.build_stream(gen, model),
+            response_builder=anthropic_response_builder,
+            error_sender=self._send_anthropic_error,
+            stream_error_formatter=anthropic_stream_error,
+        )
+
+    def _handle_aistudio_responses(self, payload: dict[str, Any]) -> None:
+        model = str(payload.get("model") or "aistudio/gemini-4-hydrogen")
+        response_id = f"resp_{uuid.uuid4().hex[:16]}"
+
+        def responses_stream_error(exc: Exception) -> str:
+            err_payload = json.dumps({
+                "type": "response.failed",
+                "response": {"id": response_id, "status": "failed", "error": {"message": str(exc)}},
+            })
+            return f"event: response.failed\ndata: {err_payload}\n\n"
+
+        def responses_response_builder(collected: CollectedStreamData) -> dict[str, Any]:
+            return ResponsesProtocolAdapter.build_response(
+                response_id=response_id,
+                model=model,
+                text=collected.text,
+                usage=collected.usage,
+                tool_calls=collected.tool_calls if collected.tool_calls else None,
+            )
+
+        self._dispatch_aistudio_protocol(
+            protocol="openai_responses",
+            payload=payload,
+            model_label=model,
+            transform_fn=responses_to_aistudio_request,
+            stream_builder=lambda gen: ResponsesProtocolAdapter.build_stream(gen, model, response_id=response_id),
+            response_builder=responses_response_builder,
+            error_sender=self._send_error,
+            stream_error_formatter=responses_stream_error,
+            response_id=response_id,
+        )
 
     def _handle_cursor_chat_completion(self, payload: dict[str, Any]) -> None:
         self._handle_backend_chat_completion(payload)
@@ -999,7 +1434,8 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
             client_msg = f"Internal server error [{self.request_id}]"
         else:
             client_msg = str(exc)
-        code, err_payload = build_anthropic_error_response(status_code, client_msg)
+        err_type_arg = error_type if isinstance(exc, InteractionStateError) else None
+        code, err_payload = build_anthropic_error_response(status_code, client_msg, error_type=err_type_arg)
         headers: dict[str, str] = {}
         if status_code == 429:
             retry_after = 5
@@ -1229,6 +1665,9 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _handle_anthropic_messages(self, payload: dict[str, Any]) -> None:
         model = str(payload.get("model") or "")
+        if is_aistudio_model(model):
+            self._handle_aistudio_messages(payload)
+            return
         if self._guard_antigravity(model):
             return
         if is_cursor_model(model):
@@ -1302,6 +1741,9 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _handle_responses(self, payload: dict[str, Any]) -> None:
         resp_model = str(payload.get("model") or "")
+        if is_aistudio_model(resp_model):
+            self._handle_aistudio_responses(payload)
+            return
         if self._guard_antigravity(resp_model):
             return
         try:
@@ -1363,7 +1805,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
         code, err = build_openai_error_response(
             503,
             "Antigravity is not available (Google Cloud credential missing or expired). "
-            "Open Antigravity and sign in to use AGY models. Cursor, OpenCode and Junie models keep working.",
+            "Open Antigravity and sign in to use AGY models. Cursor, OpenCode, Junie and AI Studio models keep working.",
             "antigravity_unavailable",
         )
         self._send_json(code, err)
@@ -1371,6 +1813,9 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
 
     def _handle_chat_completion(self, payload: dict[str, Any]) -> None:
         model = str(payload.get("model") or "")
+        if is_aistudio_model(model):
+            self._handle_aistudio_chat_completion(payload)
+            return
         if is_cursor_model(model):
             self._handle_cursor_chat_completion(payload)
             return
@@ -1484,6 +1929,8 @@ def create_server(
     cursor_backend: Any | None = None,
     opencode_backend: Any | None = None,
     junie_backend: Any | None = None,
+    aistudio_backend: Any | None = None,
+    aistudio_cache: InteractionStepCache | None = None,
 ) -> http.server.ThreadingHTTPServer:
     """Instantiates and configures a ThreadingHTTPServer instance."""
     if no_auth and not is_loopback_host(host):
@@ -1538,6 +1985,10 @@ def create_server(
         opencode_backend = OpencodeBackend()
     if junie_backend is None:
         junie_backend = JunieBackend()
+    if aistudio_backend is None:
+        aistudio_backend = AistudioBackend()
+    if aistudio_cache is None:
+        aistudio_cache = InteractionStepCache()
 
     concurrency_semaphore = threading.Semaphore(max_concurrency)
 
@@ -1557,6 +2008,8 @@ def create_server(
         cursor_backend=cursor_backend,
         opencode_backend=opencode_backend,
         junie_backend=junie_backend,
+        aistudio_backend=aistudio_backend,
+        aistudio_cache=aistudio_cache,
     )
 
     class ConfiguredHandler(OpenAIRequestHandler):
@@ -1575,6 +2028,8 @@ def create_server(
     ConfiguredHandler.cursor_backend = cursor_backend
     ConfiguredHandler.opencode_backend = opencode_backend
     ConfiguredHandler.junie_backend = junie_backend
+    ConfiguredHandler.aistudio_backend = aistudio_backend
+    ConfiguredHandler.aistudio_cache = aistudio_cache
 
     server = http.server.ThreadingHTTPServer((host, port), ConfiguredHandler)
     server.daemon_threads = True
@@ -1589,6 +2044,8 @@ def create_server(
     server.cursor_backend = cursor_backend  # type: ignore[attr-defined]
     server.opencode_backend = opencode_backend  # type: ignore[attr-defined]
     server.junie_backend = junie_backend  # type: ignore[attr-defined]
+    server.aistudio_backend = aistudio_backend  # type: ignore[attr-defined]
+    server.aistudio_cache = aistudio_cache  # type: ignore[attr-defined]
     return server
 
 
@@ -1607,6 +2064,8 @@ def run_server(
     cursor_backend: Any | None = None,
     opencode_backend: Any | None = None,
     junie_backend: Any | None = None,
+    aistudio_backend: Any | None = None,
+    aistudio_cache: InteractionStepCache | None = None,
 ) -> None:
     """Starts the ThreadingHTTPServer serving OpenAI-compatible endpoints."""
     server = create_server(
@@ -1624,6 +2083,8 @@ def run_server(
         cursor_backend=cursor_backend,
         opencode_backend=opencode_backend,
         junie_backend=junie_backend,
+        aistudio_backend=aistudio_backend,
+        aistudio_cache=aistudio_cache,
     )
     actual_port = server.server_address[1]
     print(f"Antigravity Model Bridge listening on http://{host}:{actual_port}")

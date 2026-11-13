@@ -406,10 +406,10 @@ class OpencodeBackend:
 
 def is_antigravity_model(model: str) -> bool:
     """Returns True when a model id belongs to the Antigravity upstream
-    (i.e. it is not a Cursor or OpenCode model)."""
+    (i.e. it is not a Cursor, OpenCode, Junie, or AI Studio model)."""
     if not model or not isinstance(model, str):
         return False
     m = model.strip().lower()
-    if m.startswith(("cursor/", "cursor-", "opencode/")):
+    if m.startswith(("cursor/", "cursor-", "opencode/", "junie/", "aistudio/")):
         return False
     return bool(m)

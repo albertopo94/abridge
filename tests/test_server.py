@@ -175,6 +175,7 @@ class TestServerEndpoints(unittest.TestCase):
             cursor_backend=cls.mock_cursor_backend,
             opencode_backend=cls.mock_opencode_backend,
             junie_backend=MockJunieBackend(),
+            aistudio_backend=MockAistudioBackend(),
         )
         cls.port = cls.server.server_address[1]
         cls.base_url = f"http://127.0.0.1:{cls.port}"
@@ -233,13 +234,14 @@ class TestServerEndpoints(unittest.TestCase):
         status, headers, body = self._http_get("/v1/models")
         self.assertEqual(status, 200)
         self.assertEqual(body["object"], "list")
-        # 2 Antigravity + 2 Cursor + 2 OpenCode + 2 Junie (all injected mocks).
-        self.assertEqual(len(body["data"]), 8)
+        # 2 Antigravity + 2 Cursor + 2 OpenCode + 2 Junie + 3 AI Studio (all injected mocks).
+        self.assertEqual(len(body["data"]), 11)
         ids = [m["id"] for m in body["data"]]
         self.assertIn("gemini-2.5-pro", ids)
         self.assertIn("cursor/gpt-5.3-codex", ids)
         self.assertIn("cursor/composer-2.5", ids)
         self.assertIn("opencode/pulse-alpha-free", ids)
+        self.assertIn("aistudio/gemini-4-hydrogen", ids)
         opencode_model = next(m for m in body["data"] if m["id"] == "opencode/pulse-alpha-free")
         self.assertEqual(opencode_model["owned_by"], "opencode")
         self.assertTrue(opencode_model["display_name"].endswith("[OpenCode]"))
@@ -2878,6 +2880,30 @@ class MockJunieBackend:
         }
 
 
+class MockAistudioBackend:
+    def __init__(self) -> None:
+        self.models = [
+            {"id": "aistudio/gemini-4-hydrogen", "slug": "aistudio/gemini-4-hydrogen", "display_name": "AI Studio — Gemini 4 Hydrogen [AI Studio]", "owned_by": "aistudio"},
+            {"id": "aistudio/gemini-3.8-flash", "slug": "aistudio/gemini-3.8-flash", "display_name": "AI Studio — Gemini 3.8 Flash [AI Studio]", "owned_by": "aistudio"},
+            {"id": "aistudio/gemini-4-argon", "slug": "aistudio/gemini-4-argon", "display_name": "AI Studio — Gemini 4 Argon [AI Studio]", "owned_by": "aistudio"},
+        ]
+
+    def list_models(self) -> list[dict[str, Any]]:
+        return list(self.models)
+
+    def status(self, verify_live: bool = False) -> dict[str, Any]:
+        return {
+            "available": True,
+            "configured": True,
+            "auth_status": "configured_unverified",
+            "detail": "mock",
+            "service": "abridge-aistudio",
+            "account": "api-key",
+            "model_count": len(self.models),
+            "quota_supported": False,
+        }
+
+
 class TestOpencodeUpstreamRouting(unittest.TestCase):
     """OpenCode upstream: catalog inclusion and routing in chat/anthropic handlers (T3)."""
 
@@ -2897,6 +2923,7 @@ class TestOpencodeUpstreamRouting(unittest.TestCase):
             cursor_backend=cls.mock_cursor_backend,
             opencode_backend=cls.mock_opencode_backend,
             junie_backend=MockJunieBackend(),
+            aistudio_backend=MockAistudioBackend(),
         )
         cls.port = cls.server.server_address[1]
         cls.base_url = f"http://127.0.0.1:{cls.port}"

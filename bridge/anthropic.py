@@ -806,6 +806,8 @@ def build_anthropic_error_response(
             error_type = "permission_error"
         elif status_code == 404:
             error_type = "not_found_error"
+        elif status_code == 409:
+            error_type = "conflict_error"
         elif status_code == 429:
             error_type = "rate_limit_error"
         elif status_code == 503:

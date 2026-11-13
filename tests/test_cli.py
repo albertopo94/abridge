@@ -443,6 +443,7 @@ class TestMainRootHelp(unittest.TestCase):
         self.assertIn("start", out)
         self.assertIn("stop", out)
         self.assertIn("status", out)
+        self.assertIn("auth", out)
         self.assertIn("setup-claude", out)
         self.assertIn("setup-opencode", out)
         self.assertIn("update", out)
@@ -465,7 +466,7 @@ class TestMainRootHelp(unittest.TestCase):
         with redirect_stdout(buf):
             code = main(["--version"])
         self.assertEqual(code, 0)
-        self.assertIn("v0.38.0", buf.getvalue())
+        self.assertIn("v0.39.0", buf.getvalue())
 
     def test_prog_base_resolution(self):
         from io import StringIO

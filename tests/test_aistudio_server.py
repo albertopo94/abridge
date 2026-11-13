@@ -570,6 +570,89 @@ class TestAistudioServerEndpoints(unittest.TestCase):
             srv.shutdown()
             srv.server_close()
 
+    def test_chat_anonymous_multi_tool_then_text_then_replay(self) -> None:
+        """Reproduces the real 409 case: several tool turns, a final text turn,
+        then a new request replaying full history WITHOUT session-id."""
+        srv, _, client, _ = self._start_server()
+        try:
+            port = srv.server_address[1]
+            # Turn 1: requires_action, one tool
+            client.next_streams.append([
+                {"event_type": "step.start", "index": 0, "step": {"type": "thought"}},
+                {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_signature", "signature": "sig_t1"}},
+                {"event_type": "step.stop", "index": 0},
+                {"event_type": "step.start", "index": 1, "step": {"type": "function_call", "id": "toolu_a", "name": "fn_a", "arguments": {}}},
+                {"event_type": "step.delta", "index": 1, "delta": {"type": "arguments_delta", "arguments": '{"a":1}'}},
+                {"event_type": "step.stop", "index": 1},
+                {"event_type": "interaction.requires_action", "interaction": {"id": "int_t1", "status": "requires_action"}},
+            ])
+            c1, _ = self._request(port, "POST", "/v1/chat/completions", {
+                "model": "aistudio/gemini-4-hydrogen-high", "stream": True,
+                "tools": [{"type": "function", "function": {"name": "fn_a", "parameters": {"type": "object"}}}],
+                "messages": [{"role": "user", "content": "do a"}],
+            })
+            self.assertEqual(c1, 200)
+            # Turn 2: resolve turn 1 + tool result -> requires_action (another tool)
+            client.next_streams.append([
+                {"event_type": "step.start", "index": 0, "step": {"type": "thought"}},
+                {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_signature", "signature": "sig_t2"}},
+                {"event_type": "step.stop", "index": 0},
+                {"event_type": "step.start", "index": 1, "step": {"type": "function_call", "id": "toolu_b", "name": "fn_b", "arguments": {}}},
+                {"event_type": "step.delta", "index": 1, "delta": {"type": "arguments_delta", "arguments": '{"b":2}'}},
+                {"event_type": "step.stop", "index": 1},
+                {"event_type": "interaction.requires_action", "interaction": {"id": "int_t2", "status": "requires_action"}},
+            ])
+            c2, _ = self._request(port, "POST", "/v1/chat/completions", {
+                "model": "aistudio/gemini-4-hydrogen-high", "stream": True,
+                "tools": [{"type": "function", "function": {"name": "fn_a", "parameters": {"type": "object"}}}, {"type": "function", "function": {"name": "fn_b", "parameters": {"type": "object"}}}],
+                "messages": [
+                    {"role": "user", "content": "do a"},
+                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}}]},
+                    {"role": "tool", "tool_call_id": "call_a", "content": "ra"},
+                ],
+            })
+            self.assertEqual(c2, 200)
+            # Turn 3: resolve turns 1+2 + tool result -> final text completed
+            client.next_interactions.append({
+                "id": "int_t3", "status": "completed",
+                "steps": [{"type": "model_output", "content": [{"type": "text", "text": "final text"}]}],
+            })
+            c3, b3 = self._request(port, "POST", "/v1/chat/completions", {
+                "model": "aistudio/gemini-4-hydrogen-high",
+                "tools": [{"type": "function", "function": {"name": "fn_a", "parameters": {"type": "object"}}}, {"type": "function", "function": {"name": "fn_b", "parameters": {"type": "object"}}}],
+                "messages": [
+                    {"role": "user", "content": "do a"},
+                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}}]},
+                    {"role": "tool", "tool_call_id": "call_a", "content": "ra"},
+                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":2}'}}]},
+                    {"role": "tool", "tool_call_id": "call_b", "content": "rb"},
+                ],
+            })
+            self.assertEqual(c3, 200)
+            self.assertEqual(b3["choices"][0]["message"]["content"], "final text")
+            # Turn 4: replay ENTIRE history (3 tool+text turns) and resolve ALL
+            client.next_interactions.append({
+                "id": "int_t4", "status": "completed",
+                "steps": [{"type": "model_output", "content": [{"type": "text", "text": "next"}]}],
+            })
+            c4, b4 = self._request(port, "POST", "/v1/chat/completions", {
+                "model": "aistudio/gemini-4-hydrogen-high",
+                "messages": [
+                    {"role": "user", "content": "do a"},
+                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_a", "type": "function", "function": {"name": "fn_a", "arguments": '{"a":1}'}}]},
+                    {"role": "tool", "tool_call_id": "call_a", "content": "ra"},
+                    {"role": "assistant", "content": None, "tool_calls": [{"id": "call_b", "type": "function", "function": {"name": "fn_b", "arguments": '{"b":2}'}}]},
+                    {"role": "tool", "tool_call_id": "call_b", "content": "rb"},
+                    {"role": "assistant", "content": "final text"},
+                    {"role": "user", "content": "and now?"},
+                ],
+            })
+            self.assertEqual(c4, 200)
+            self.assertEqual(b4["choices"][0]["message"]["content"], "next")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
 
 if __name__ == "__main__":
     unittest.main()

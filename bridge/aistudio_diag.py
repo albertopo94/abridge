@@ -9,6 +9,7 @@ full prompts, tool results, arguments, thought signatures, or raw steps.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import sys
@@ -23,8 +24,42 @@ def diagnostics_enabled() -> bool:
     return val.strip().lower() in ("1", "true", "yes", "on")
 
 
+def _digest(value: Any) -> str:
+    canonical = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def message_fingerprints(messages: list[Any]) -> list[dict[str, Any]]:
+    """Per-message structural fingerprints (redacted): index, role, content hash, tool IDs.
+
+    Never records content, arguments, results, prompts, or secrets — only SHA-256
+    digests and identifiers, so diverging history entries are locatable by index.
+    """
+    out: list[dict[str, Any]] = []
+    for idx, msg in enumerate(messages):
+        if not isinstance(msg, dict):
+            out.append({"i": idx, "role": "?"})
+            continue
+        role = str(msg.get("role") or msg.get("type") or "?")
+        entry: dict[str, Any] = {"i": idx, "role": role}
+        content = msg.get("content")
+        if content is None:
+            entry["c"] = "null"
+        else:
+            entry["c"] = _digest(content)[:16]
+        tcs = msg.get("tool_calls")
+        if isinstance(tcs, list) and tcs:
+            entry["tc"] = [str(tc.get("id") if isinstance(tc, dict) else tc) for tc in tcs]
+            args = [tc.get("function", {}).get("arguments") if isinstance(tc, dict) else None for tc in tcs]
+            entry["ta"] = [_digest(a)[:16] if a is not None else "null" for a in args]
+        if "tool_call_id" in msg:
+            entry["tcid"] = str(msg.get("tool_call_id"))
+        out.append(entry)
+    return out
+
+
 def diag_log(*, event: str, **fields: Any) -> None:
-    """Writes one redacted JSON line to stderr when diagnostics are enabled."""
+    """Writes one redacted JSON line to stderr when diagnostics are enabled."""""
     if not diagnostics_enabled():
         return
     payload: dict[str, Any] = {"t": round(time.time(), 3), "evt": event}

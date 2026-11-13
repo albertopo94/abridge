@@ -248,6 +248,15 @@ JUNIE_ICON_SVG = (
     '</svg>'
 )
 
+AISTUDIO_ICON_SVG = (
+    '<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">'
+    '<defs><linearGradient id="aistudio-grad" x1="0%" y1="0%" x2="100%" y2="100%">'
+    '<stop offset="0%" stop-color="#4285F4"/><stop offset="55%" stop-color="#8E6BFF"/><stop offset="100%" stop-color="#F26B9A"/>'
+    '</linearGradient></defs>'
+    '<path fill="url(#aistudio-grad)" d="M12 2L14.6 9.4L22 12L14.6 14.6L12 22L9.4 14.6L2 12L9.4 9.4Z"/>'
+    '</svg>'
+)
+
 OPENCLAW_ICON_SVG = (
     '<svg class="card-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="#FF4D4D" aria-hidden="true">'
     '<g transform="translate(0 0) scale(0.2)">'
@@ -307,6 +316,7 @@ def _make_client_providers(
     cursor_snippet: Any = None,
     opencode_snippet: Any = None,
     junie_snippet: Any = None,
+    aistudio_snippet: Any = None,
     extra_providers: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     providers: list[dict[str, Any]] = [
@@ -375,6 +385,23 @@ def _make_client_providers(
                 "manual_snippet": junie_snippet if junie_snippet is not None else agy_snippet,
                 "restore_cmd": lambda addr: f"abridge restore-{client_id} --provider junie",
                 "docs_url": "https://junie.jetbrains.com/docs",
+            }
+        )
+
+    if client_id != "aistudio":
+        providers.append(
+            {
+                "id": "aistudio",
+                "label_en": "AI Studio",
+                "label_es": "AI Studio",
+                "auto_cmd": lambda addr: (
+                    f"abridge setup-{client_id} --provider aistudio --model aistudio/gemini-4-hydrogen --port {addr.rsplit(':', 1)[1]}"
+                    if ":" in addr and addr.rsplit(":", 1)[1].isdigit() and addr.rsplit(":", 1)[1] != "24980"
+                    else f"abridge setup-{client_id} --provider aistudio --model aistudio/gemini-4-hydrogen"
+                ),
+                "manual_snippet": aistudio_snippet if aistudio_snippet is not None else agy_snippet,
+                "restore_cmd": lambda addr: f"abridge restore-{client_id} --provider aistudio",
+                "docs_url": "https://aistudio.google.com/docs",
             }
         )
 
@@ -498,6 +525,7 @@ CLIENT_CARDS: list[dict[str, Any]] = [
             cursor_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="cursor/auto"',
             opencode_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="opencode/pulse-alpha-free"',
             junie_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="junie/junie-lite"',
+            aistudio_snippet=lambda addr, api_key='$(cat ~/.abridge/api_key 2>/dev/null || cat ~/.agy-bridge/api_key)': f'export ANTHROPIC_BASE_URL="http://{addr}"\nexport ANTHROPIC_AUTH_TOKEN="{api_key}"\nexport ANTHROPIC_MODEL="aistudio/gemini-4-hydrogen"',
         ),
     },
     {
@@ -585,6 +613,19 @@ CLIENT_CARDS: list[dict[str, Any]] = [
                 f'model_auto_compact_token_limit = 943718\n\n'
                 f'[model_providers.junie]\n'
                 f'name = "junie"\n'
+                f'base_url = "http://{addr}/v1"\n'
+                f'wire_api = "responses"\n'
+                f'requires_openai_auth = false\n'
+                f'http_headers = {{ Authorization = "Bearer {api_key if not str(api_key).startswith("$(") else "<YOUR_API_KEY>"}" }}'
+            ),
+            aistudio_snippet=lambda addr, api_key='<YOUR_API_KEY>': (
+                f'# ~/.codex/config.toml\n'
+                f'model = "aistudio/gemini-4-hydrogen"\n'
+                f'model_provider = "aistudio"\n'
+                f'model_context_window = 1048576\n'
+                f'model_auto_compact_token_limit = 943718\n\n'
+                f'[model_providers.aistudio]\n'
+                f'name = "aistudio"\n'
                 f'base_url = "http://{addr}/v1"\n'
                 f'wire_api = "responses"\n'
                 f'requires_openai_auth = false\n'
@@ -1575,6 +1616,7 @@ def render_dashboard(
           <button type="button" id="tab-quota-cursor" class="quota-tab-btn" role="tab" aria-selected="false" onclick="switchQuotaTab('cursor')">Cursor</button>
           <button type="button" id="tab-quota-opencode" class="quota-tab-btn" role="tab" aria-selected="false" onclick="switchQuotaTab('opencode')">OpenCode</button>
           <button type="button" id="tab-quota-junie" class="quota-tab-btn" role="tab" aria-selected="false" onclick="switchQuotaTab('junie')">Junie</button>
+          <button type="button" id="tab-quota-aistudio" class="quota-tab-btn" role="tab" aria-selected="false" onclick="switchQuotaTab('aistudio')">AI Studio</button>
         </div>
 
         <div id="quota-card" class="quota-card">
@@ -1677,6 +1719,30 @@ def render_dashboard(
           </div>
           <div id="junie-no-quota" class="quota-footnote" data-i18n="junie_no_quota_note">Junie does not expose a quota API. Free tier accounts (Lite-only access) support 'junie/junie-lite'; other catalog models require a JetBrains AI plan or BYOK.</div>
         </div>
+
+        <div id="aistudio-quota-card" class="quota-card" style="display: none;">
+          <div class="quota-header">
+            <div class="quota-title-row">
+              {AISTUDIO_ICON_SVG}
+              <div class="quota-title-text">
+                <span class="quota-title" data-i18n="aistudio_tab_title">AI Studio</span>
+                <span id="aistudio-quota-subtitle" class="quota-subtitle" data-i18n="quota_loading">{quota_loading_text}</span>
+              </div>
+            </div>
+            <button type="button" id="aistudio-quota-refresh-btn" class="quota-refresh-btn" aria-label="{quota_refresh_text}" onclick="refreshAistudioStatus()" title="{quota_refresh_text}">
+              {REFRESH_ICON_SVG}
+            </button>
+          </div>
+          <div class="quota-divider"></div>
+          <div id="aistudio-quota-body" class="quota-buckets">
+            <div class="quota-skeleton">
+              <div class="skeleton-line" style="width: 70%;"></div>
+              <div class="skeleton-line" style="width: 100%; height: 6px;"></div>
+              <div class="skeleton-line" style="width: 45%;"></div>
+            </div>
+          </div>
+          <div id="aistudio-no-quota" class="quota-footnote" data-i18n="aistudio_no_quota_note">Google AI Studio uses a separate Gemini API key in macOS Keychain (abridge-aistudio) with stateless store=false continuity.</div>
+        </div>
       </aside>
 
       <main class="cards-grid">
@@ -1727,6 +1793,7 @@ def render_dashboard(
         "tab_cursor": "Cursor",
         "tab_opencode": "OpenCode",
         "tab_junie": "Junie",
+        "tab_aistudio": "AI Studio",
         "tab_all": "All",
         "tab_freellmapi": "FreeLLMAPI",
         "tip_warning_gentle-shell_freellmapi": "⚠️ Requires FreeLLMAPI gateway running on http://127.0.0.1:31415",
@@ -1757,6 +1824,15 @@ def render_dashboard(
         junie_version: "CLI v{{v}}",
         junie_no_quota_note: "Junie does not expose a quota API. Free tier accounts (Lite-only access) support 'junie/junie-lite'; other catalog models require a JetBrains AI plan or BYOK.",
         tip_warning_junie_free: "On Junie's Free tier (Lite-only access), only 'junie/junie-lite' is available without JetBrains AI subscription or BYOK.",
+        aistudio_tab_title: "AI Studio",
+        aistudio_status_verified: "API key verified",
+        aistudio_status_configured: "Keychain configured",
+        aistudio_status_missing: "API key not configured",
+        aistudio_status_rejected: "API key rejected by Google",
+        aistudio_status_unverified: "Key stored (unverified)",
+        aistudio_models_exposed: "{{n}} models declared",
+        aistudio_keychain_item: "Keychain: {{s}}",
+        aistudio_no_quota_note: "Google AI Studio uses a separate Gemini API key in macOS Keychain (abridge-aistudio) with stateless store=false continuity.",
         quota_group_gemini: "Gemini Models",
         quota_group_claude_gpt: "Claude and GPT models",
         quota_group_argon: "Gemini 4 Argon",
@@ -1804,6 +1880,7 @@ def render_dashboard(
         "tab_cursor": "Cursor",
         "tab_opencode": "OpenCode",
         "tab_junie": "Junie",
+        "tab_aistudio": "AI Studio",
         "tab_all": "Todos",
         "tab_freellmapi": "FreeLLMAPI",
         "tip_warning_gentle-shell_freellmapi": "⚠️ Requiere el gateway de FreeLLMAPI corriendo en http://127.0.0.1:31415",
@@ -1834,6 +1911,15 @@ def render_dashboard(
         junie_version: "CLI v{{v}}",
         junie_no_quota_note: "Junie no expone una API de cuota. Las cuentas del plan Free (acceso Lite-only) admiten 'junie/junie-lite'; los demás modelos del catálogo requieren un plan JetBrains AI o BYOK.",
         tip_warning_junie_free: "En el plan Free de Junie (acceso Lite-only), solo 'junie/junie-lite' está disponible sin suscripción JetBrains AI o BYOK.",
+        aistudio_tab_title: "AI Studio",
+        aistudio_status_verified: "API key verificada",
+        aistudio_status_configured: "Keychain configurado",
+        aistudio_status_missing: "API key no configurada",
+        aistudio_status_rejected: "API key rechazada por Google",
+        aistudio_status_unverified: "Clave guardada (sin verificar)",
+        aistudio_models_exposed: "{{n}} modelos declarados",
+        aistudio_keychain_item: "Keychain: {{s}}",
+        aistudio_no_quota_note: "Google AI Studio usa una Gemini API key independiente en macOS Keychain (abridge-aistudio) con continuidad stateless store=false.",
         quota_group_gemini: "Modelos Gemini",
         quota_group_claude_gpt: "Modelos Claude y GPT",
         quota_group_argon: "Gemini 4 Argon",
@@ -2499,6 +2585,76 @@ def render_dashboard(
       fetchJunieStatus();
     }}
 
+    function renderAistudioStatus(data) {{
+      var dict = I18N[currentLang] || I18N.en;
+      var subtitleEl = document.getElementById("aistudio-quota-subtitle");
+      var bodyEl = document.getElementById("aistudio-quota-body");
+      if (!bodyEl) return;
+      bodyEl.innerHTML = "";
+
+      var authStatus = (data && data.auth_status) ? String(data.auth_status) : "not_configured";
+      if (!data || !data.configured || authStatus === "not_configured") {{
+        if (subtitleEl) subtitleEl.textContent = dict.aistudio_status_missing || "API key not configured";
+        var miss = document.createElement("div");
+        miss.className = "quota-footnote";
+        miss.textContent = "Keychain: " + ((data && data.service) || "abridge-aistudio");
+        var pre = document.createElement("div");
+        pre.className = "quota-bucket";
+        var cmd = document.createElement("code");
+        cmd.textContent = "abridge auth aistudio";
+        pre.appendChild(document.createTextNode("Setup: "));
+        pre.appendChild(cmd);
+        bodyEl.appendChild(miss);
+        bodyEl.appendChild(pre);
+        return;
+      }}
+
+      var subLabel = dict.aistudio_status_configured || "Keychain configured";
+      if (authStatus === "verified") {{
+        subLabel = dict.aistudio_status_verified || "API key verified";
+      }} else if (authStatus === "rejected") {{
+        subLabel = dict.aistudio_status_rejected || "API key rejected by Google";
+      }} else if (authStatus === "unverified") {{
+        subLabel = dict.aistudio_status_unverified || "Key stored (unverified)";
+      }}
+      if (subtitleEl) subtitleEl.textContent = subLabel;
+
+      var row1 = document.createElement("div");
+      row1.className = "quota-bucket";
+      var label1 = document.createElement("span");
+      label1.className = "quota-bucket-label";
+      label1.textContent = (dict.aistudio_models_exposed || "{{n}} models declared").replace("{{n}}", String(data.model_count || 0));
+      row1.appendChild(label1);
+      bodyEl.appendChild(row1);
+
+      var row2 = document.createElement("div");
+      row2.className = "quota-bucket";
+      var label2 = document.createElement("span");
+      label2.className = "quota-bucket-label";
+      label2.textContent = (dict.aistudio_keychain_item || "Keychain: {{s}}").replace("{{s}}", String(data.service || "abridge-aistudio"));
+      row2.appendChild(label2);
+      bodyEl.appendChild(row2);
+    }}
+
+    function fetchAistudioStatus(verifyLive) {{
+      var url = verifyLive ? "/api/aistudio/status?verify=1" : "/api/aistudio/status";
+      fetch(url)
+        .then(function(res) {{
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        }})
+        .then(function(data) {{
+          renderAistudioStatus(data);
+        }})
+        .catch(function(err) {{
+          renderAistudioStatus({{ configured: false, auth_status: "unverified", error: String(err) }});
+        }});
+    }}
+
+    function refreshAistudioStatus() {{
+      fetchAistudioStatus(true);
+    }}
+
     (function initLang() {{
       var saved = null;
       try {{
@@ -2509,7 +2665,7 @@ def render_dashboard(
       }}
       try {{
         var savedQuotaTab = localStorage.getItem("agy_quota_tab");
-        if (savedQuotaTab === "cursor" || savedQuotaTab === "opencode" || savedQuotaTab === "junie") {{
+        if (savedQuotaTab === "cursor" || savedQuotaTab === "opencode" || savedQuotaTab === "junie" || savedQuotaTab === "aistudio") {{
           switchQuotaTab(savedQuotaTab);
         }}
       }} catch (e) {{}}
@@ -2517,6 +2673,7 @@ def render_dashboard(
       fetchCursorQuota(false);
       fetchOpencodeStatus();
       fetchJunieStatus();
+      fetchAistudioStatus(false);
     }})();
 
     setInterval(function() {{
@@ -2536,6 +2693,7 @@ def render_dashboard(
       fetchStatus();
       fetchOpencodeStatus();
       fetchJunieStatus();
+      fetchAistudioStatus(false);
     }}, 300000);
 
     function switchQuotaTab(tabId) {{
@@ -2543,17 +2701,20 @@ def render_dashboard(
       var cursorCard = document.getElementById("cursor-quota-card");
       var opencodeCard = document.getElementById("opencode-quota-card");
       var junieCard = document.getElementById("junie-quota-card");
+      var aistudioCard = document.getElementById("aistudio-quota-card");
       var agyBtn = document.getElementById("tab-quota-agy");
       var cursorBtn = document.getElementById("tab-quota-cursor");
       var opencodeBtn = document.getElementById("tab-quota-opencode");
       var junieBtn = document.getElementById("tab-quota-junie");
+      var aistudioBtn = document.getElementById("tab-quota-aistudio");
 
       if (agyCard) agyCard.style.display = (tabId === "agy") ? "flex" : "none";
       if (cursorCard) cursorCard.style.display = (tabId === "cursor") ? "flex" : "none";
       if (opencodeCard) opencodeCard.style.display = (tabId === "opencode") ? "flex" : "none";
       if (junieCard) junieCard.style.display = (tabId === "junie") ? "flex" : "none";
+      if (aistudioCard) aistudioCard.style.display = (tabId === "aistudio") ? "flex" : "none";
 
-      var pairs = [[agyBtn, "agy"], [cursorBtn, "cursor"], [opencodeBtn, "opencode"], [junieBtn, "junie"]];
+      var pairs = [[agyBtn, "agy"], [cursorBtn, "cursor"], [opencodeBtn, "opencode"], [junieBtn, "junie"], [aistudioBtn, "aistudio"]];
       for (var i = 0; i < pairs.length; i++) {{
         var btn = pairs[i][0];
         if (!btn) continue;

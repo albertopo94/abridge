@@ -7,7 +7,9 @@ from typing import Any, cast
 from bridge.setup.availability import split_by_availability
 from bridge.setup.base import ClientConfigurator, ConfigPath, get_configurator
 from bridge.setup.common import (
+    DEFAULT_AISTUDIO_UPSTREAM_MODEL,
     _strip_json_comments,
+    aistudio_provider_models,
     atomic_write_file,
     create_backup,
     get_active_api_key,
@@ -262,6 +264,9 @@ class OpenCodeConfigurator(ClientConfigurator):
         if provider == "cursor":
             def_model = model if model != "gemini-3.8-flash-high" else "cursor/auto"
             config["model"] = def_model if def_model.startswith("cursor/") else f"cursor/{def_model}"
+        elif provider == "aistudio":
+            def_model = model if (model and model.startswith("aistudio/")) else DEFAULT_AISTUDIO_UPSTREAM_MODEL
+            config["model"] = def_model
         elif provider in ("all", "todos"):
             config["model"] = model if model.startswith("cursor/") else f"agy/{model or 'gemini-3.8-flash-high'}"
         else:
@@ -281,6 +286,19 @@ class OpenCodeConfigurator(ClientConfigurator):
                     "apiKey": auth_token,
                 },
                 "models": dict(DEFAULT_CURSOR_OPENCODE_MODELS),
+            }
+        elif provider == "aistudio":
+            provider_map["aistudio"] = {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Google AI Studio",
+                "options": {
+                    "baseURL": resolved_url,
+                    "apiKey": auth_token,
+                },
+                "models": {
+                    mid: {"name": label, "limit": {"context": 1048576, "output": 65536}}
+                    for mid, label in aistudio_provider_models()
+                },
             }
 
         agy_models: dict[str, Any] = {}
@@ -346,13 +364,15 @@ class OpenCodeConfigurator(ClientConfigurator):
                         if isinstance(prov, dict):
                             if provider == "cursor":
                                 prov.pop("cursor", None)
+                            elif provider == "aistudio":
+                                prov.pop("aistudio", None)
                             elif provider in ("all", "todos"):
                                 prov.pop("agy", None)
                                 prov.pop("cursor", None)
                             else:
                                 prov.pop("agy", None)
                         m_str = str(config.get("model", ""))
-                        if m_str.startswith("agy/") or m_str.startswith("cursor/"):
+                        if m_str.startswith("agy/") or m_str.startswith("cursor/") or m_str.startswith("aistudio/"):
                             config.pop("model", None)
 
                         formatted_json = json.dumps(config, indent=2) + "\n"

@@ -313,3 +313,22 @@ def junie_provider_models() -> list[tuple[str, str]]:
 
 
 DEFAULT_JUNIE_UPSTREAM_MODEL = "junie/junie-lite"
+
+
+def aistudio_provider_models() -> list[tuple[str, str]]:
+    """Devuelve (model_id, label) con variantes por esfuerzo para AI Studio (estilo Antigravity CLI)."""
+    return [
+        ("aistudio/gemini-4-hydrogen-xhigh", "Gemini 4 Hydrogen (XHigh) [AI Studio]"),
+        ("aistudio/gemini-4-hydrogen-high", "Gemini 4 Hydrogen (High) [AI Studio]"),
+        ("aistudio/gemini-4-hydrogen-medium", "Gemini 4 Hydrogen (Medium) [AI Studio]"),
+        ("aistudio/gemini-4-hydrogen-low", "Gemini 4 Hydrogen (Low) [AI Studio]"),
+        ("aistudio/gemini-3.8-flash-high", "Gemini 3.8 Flash (High) [AI Studio]"),
+        ("aistudio/gemini-3.8-flash-medium", "Gemini 3.8 Flash (Medium) [AI Studio]"),
+        ("aistudio/gemini-3.8-flash-low", "Gemini 3.8 Flash (Low) [AI Studio]"),
+        ("aistudio/gemini-4-argon-high", "Gemini 4 Argon (High) [AI Studio]"),
+        ("aistudio/gemini-4-argon-medium", "Gemini 4 Argon (Medium) [AI Studio]"),
+        ("aistudio/gemini-4-argon-low", "Gemini 4 Argon (Low) [AI Studio]"),
+    ]
+
+
+DEFAULT_AISTUDIO_UPSTREAM_MODEL = "aistudio/gemini-4-hydrogen"

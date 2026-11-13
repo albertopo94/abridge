@@ -6,6 +6,7 @@ from typing import Any, cast
 
 from bridge.setup.base import ClientConfigurator, ConfigPath, get_configurator
 from bridge.setup.common import (
+    DEFAULT_AISTUDIO_UPSTREAM_MODEL,
     DEFAULT_OPENCODE_UPSTREAM_MODEL,
     DEFAULT_JUNIE_UPSTREAM_MODEL,
     atomic_write_file,
@@ -33,6 +34,8 @@ def build_hermes_block(
         def_model = model if (model and model.startswith("opencode/")) else DEFAULT_OPENCODE_UPSTREAM_MODEL
     elif p == "junie":
         def_model = model if (model and model.startswith("junie/")) else DEFAULT_JUNIE_UPSTREAM_MODEL
+    elif p == "aistudio":
+        def_model = model if (model and model.startswith("aistudio/")) else DEFAULT_AISTUDIO_UPSTREAM_MODEL
     elif p == "cursor":
         def_model = model if model != "gemini-3.8-flash-high" else "cursor/auto"
     else:

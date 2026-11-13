@@ -225,7 +225,7 @@ def handle_setup_claude(argv: list[str], prog_base: str, setup_fn: Any = None) -
     )
     parser.add_argument(
         "--provider",
-        choices=["agy", "cursor", "all", "junie"],
+        choices=["agy", "cursor", "all", "junie", "aistudio"],
         default="agy",
         help="Provider to configure (default: agy)",
     )
@@ -285,7 +285,7 @@ def handle_setup_codex(argv: list[str], prog_base: str, setup_fn: Any = None) ->
     )
     parser.add_argument(
         "--provider",
-        choices=["agy", "cursor", "all", "junie"],
+        choices=["agy", "cursor", "all", "junie", "aistudio"],
         default="agy",
         help="Provider to configure (default: agy)",
     )
@@ -345,7 +345,7 @@ def handle_setup_hermes(argv: list[str], prog_base: str, setup_fn: Any = None) -
     )
     parser.add_argument(
         "--provider",
-        choices=["agy", "cursor", "all", "junie"],
+        choices=["agy", "cursor", "all", "junie", "aistudio"],
         default="agy",
         help="Provider to configure (default: agy)",
     )
@@ -405,7 +405,7 @@ def handle_setup_opencode(argv: list[str], prog_base: str, setup_fn: Any = None)
     )
     parser.add_argument(
         "--provider",
-        choices=["agy", "cursor", "all", "junie"],
+        choices=["agy", "cursor", "all", "junie", "aistudio"],
         default="agy",
         help="Provider to configure (default: agy)",
     )
@@ -474,7 +474,7 @@ def handle_setup_openclaw(argv: list[str], prog_base: str, setup_fn: Any = None)
     )
     parser.add_argument(
         "--provider",
-        choices=["agy", "cursor", "all", "junie"],
+        choices=["agy", "cursor", "all", "junie", "aistudio"],
         default="agy",
         help="Provider to configure (default: agy)",
     )
@@ -613,7 +613,7 @@ def handle_setup_pi(argv: list[str], prog_base: str, setup_fn: Any = None) -> in
     )
     parser.add_argument(
         "--provider",
-        choices=["agy", "cursor", "all", "junie"],
+        choices=["agy", "cursor", "all", "junie", "aistudio"],
         default="agy",
         help="Provider to configure (default: agy)",
     )
@@ -697,7 +697,7 @@ def handle_setup_gentle_shell(
     )
     parser.add_argument(
         "--provider",
-        choices=["agy", "cursor", "all", "junie", "freellmapi"],
+        choices=["agy", "cursor", "all", "junie", "aistudio", "freellmapi"],
         default="agy",
         help="Provider to configure (default: agy)",
     )

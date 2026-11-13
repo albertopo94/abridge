@@ -1512,7 +1512,7 @@ class TestUninstall(unittest.TestCase):
         core_dir.mkdir(parents=True, exist_ok=True)
         (core_dir / "bridge").mkdir(parents=True, exist_ok=True)
         (core_dir / "bridge" / "__init__.py").write_text("# core\n", encoding="utf-8")
-        (core_dir / ".agy-bridge-installed").write_text("v0.38.0\n", encoding="utf-8")
+        (core_dir / ".agy-bridge-installed").write_text("v0.39.0\n", encoding="utf-8")
 
         with unittest.mock.patch("bridge.daemon.stop_daemon", return_value={"status": "not_running"}):
             result = uninstall(
@@ -1691,7 +1691,7 @@ class TestUpdateInstallation(unittest.TestCase):
 
         self.assertEqual(result["status"], "updated")
         self.assertTrue(result["restarted_daemon"])
-        self.assertEqual(result["version"], "0.38.0")
+        self.assertEqual(result["version"], "0.39.0")
         mock_run.assert_called_once_with(
             ["git", "-C", str(self.repo_dir), "pull", "--ff-only"],
             capture_output=True,
@@ -1889,7 +1889,7 @@ class TestUpdateInstallation(unittest.TestCase):
         fetch_res = unittest.mock.MagicMock(returncode=0)
         tags_res = unittest.mock.MagicMock(
             returncode=0,
-            stdout="v0.38.0\nv0.27.1\n",
+            stdout="v0.39.0\nv0.27.1\n",
         )
         checkout_res = unittest.mock.MagicMock(
             returncode=0,
@@ -2132,12 +2132,12 @@ class TestCLIUpdateAndVersion(unittest.TestCase):
         from pathlib import Path
         import re
 
-        self.assertEqual(bridge.__version__, "0.38.0")
+        self.assertEqual(bridge.__version__, "0.39.0")
         pyproject_path = Path(__file__).resolve().parent.parent / "pyproject.toml"
         pyproject_text = pyproject_path.read_text(encoding="utf-8")
         match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_text)
         self.assertIsNotNone(match)
-        self.assertEqual(match.group(1), "0.38.0")
+        self.assertEqual(match.group(1), "0.39.0")
 
     def test_config_path_instantiation_and_backup_attribute(self):
         from bridge.setup.base import ConfigPath
@@ -2275,6 +2275,20 @@ class TestClaudeConfiguratorStrategy(unittest.TestCase):
         self.assertTrue(any("[Junie]" in o["label"] for o in opts), [o["label"] for o in opts][:3])
         self.assertIn("junie/gemini-3.7-flash", models)
 
+    def test_setup_provider_aistudio_writes_aistudio_models(self):
+        """--provider aistudio configures Claude Code with aistudio/* and effort variants."""
+        target = self.dir_path / "settings.json"
+        self.configurator.setup(config_path=target, provider="aistudio")
+        data = json.loads(target.read_text(encoding="utf-8"))
+        env = data["env"]
+        self.assertEqual(env["ANTHROPIC_MODEL"], "aistudio/gemini-4-hydrogen")
+        opts = data["modelPicker"]["options"]
+        models = [o["model"] for o in opts]
+        self.assertTrue(all(m.startswith("aistudio/") for m in models), models)
+        self.assertTrue(any("[AI Studio]" in o["label"] for o in opts), [o["label"] for o in opts][:3])
+        self.assertIn("aistudio/gemini-4-hydrogen-xhigh", models)
+        self.assertIn("aistudio/gemini-3.8-flash-high", models)
+
     def test_paths(self):
         with unittest.mock.patch("pathlib.Path.home", return_value=self.dir_path):
             self.assertEqual(
@@ -2377,6 +2391,16 @@ class TestCodexConfiguratorStrategy(unittest.TestCase):
         self.assertIn('model_provider = "junie"', content)
         self.assertIn("[model_providers.junie]", content)
         self.assertIn("# agy:start", content)
+
+    def test_setup_provider_aistudio_writes_aistudio_block(self):
+        """--provider aistudio writes Codex config with aistudio/gemini-4-hydrogen default."""
+        target = self.dir_path / "config.toml"
+        self.configurator.setup(config_path=target, provider="aistudio")
+        content = target.read_text(encoding="utf-8")
+        self.assertIn('model = "aistudio/gemini-4-hydrogen"', content)
+        self.assertIn('model_provider = "aistudio"', content)
+        self.assertIn("[model_providers.aistudio]", content)
+        self.assertIn("# agy:start", content)
         self.assertIn("http://127.0.0.1:24980/v1", content)
 
     def test_paths(self):
@@ -2466,6 +2490,15 @@ class TestHermesConfiguratorStrategy(unittest.TestCase):
         self.configurator.setup(config_path=target, provider="junie")
         content = target.read_text(encoding="utf-8")
         self.assertIn('default: "junie/junie-lite"', content)
+        self.assertIn("# agy:start", content)
+        self.assertIn("http://127.0.0.1:24980/v1", content)
+
+    def test_setup_provider_aistudio_default_model(self):
+        """--provider aistudio sets aistudio/gemini-4-hydrogen default in Hermes block."""
+        target = self.dir_path / "config.yaml"
+        self.configurator.setup(config_path=target, provider="aistudio")
+        content = target.read_text(encoding="utf-8")
+        self.assertIn('default: "aistudio/gemini-4-hydrogen"', content)
         self.assertIn("# agy:start", content)
         self.assertIn("http://127.0.0.1:24980/v1", content)
 
@@ -3091,6 +3124,23 @@ class TestCLIOpenCode(unittest.TestCase):
         self.assertEqual(data["model"], "agy/gemini-2.5-pro")
         self.assertEqual(data["provider"]["agy"]["options"]["baseURL"], "http://127.0.0.1:9090/v1")
 
+    def test_cli_setup_opencode_provider_aistudio(self):
+        from bridge.__main__ import main
+        target = self.dir_path / "opencode_aistudio.json"
+        exit_code = main([
+            "setup-opencode",
+            "--provider",
+            "aistudio",
+            "--no-check-availability",
+            "--path",
+            str(target),
+        ])
+        self.assertEqual(exit_code, 0)
+        data = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(data["model"], "aistudio/gemini-4-hydrogen")
+        self.assertIn("aistudio", data["provider"])
+        self.assertIn("aistudio/gemini-4-hydrogen-xhigh", data["provider"]["aistudio"]["models"])
+
     def test_cli_setup_opencode_outputs_backup_and_guidance(self):
         import io
         from bridge.__main__ import main
@@ -3229,6 +3279,20 @@ class TestOpenClawConfigurator(unittest.TestCase):
         self.assertIn("junie/gemini-3.7-flash", ids)
         self.assertTrue(all("[Junie]" in m["name"] for m in provs["junie"]["models"]))
         self.assertEqual(data["agents"]["defaults"]["model"]["primary"], "junie/junie-lite")
+
+    def test_setup_provider_aistudio_writes_aistudio_provider(self):
+        """OpenClaw --provider aistudio writes providers.aistudio with text-only input and effort tiers."""
+        target = self.dir_path / "openclaw.json"
+        self.configurator.setup(config_path=target, provider="aistudio")
+        data = json.loads(target.read_text(encoding="utf-8"))
+        provs = data["models"]["providers"]
+        self.assertIn("aistudio", provs)
+        self.assertNotIn("agy", provs)
+        self.assertNotIn("cursor", provs)
+        ids = [m["id"] for m in provs["aistudio"]["models"]]
+        self.assertIn("aistudio/gemini-4-hydrogen-xhigh", ids)
+        self.assertTrue(all(m["input"] == ["text"] for m in provs["aistudio"]["models"]))
+        self.assertEqual(data["agents"]["defaults"]["model"]["primary"], "aistudio/gemini-4-hydrogen")
 
     def test_default_config_path_precedence(self):
         # 1. OPENCLAW_CONFIG_PATH override
@@ -3868,6 +3932,20 @@ class TestPiConfigurator(unittest.TestCase):
         self.assertTrue(all(i.startswith("junie/") for i in ids), ids[:3])
         self.assertIn("junie/gemini-3.7-flash", ids)
         self.assertTrue(all("[Junie]" in m["name"] for m in provs["junie"]["models"]))
+
+    def test_setup_provider_aistudio_writes_aistudio_provider(self):
+        """Pi --provider aistudio writes providers.aistudio with effort variants and text-only input."""
+        target = self.dir_path / "models.json"
+        self.configurator.setup(config_path=target, provider="aistudio")
+        data = json.loads(target.read_text(encoding="utf-8"))
+        provs = data["providers"]
+        self.assertIn("aistudio", provs)
+        self.assertNotIn("agy", provs)
+        ids = [m["id"] for m in provs["aistudio"]["models"]]
+        self.assertIn("aistudio/gemini-4-hydrogen-xhigh", ids)
+        self.assertIn("aistudio/gemini-3.8-flash-high", ids)
+        self.assertTrue(all(m["input"] == ["text"] for m in provs["aistudio"]["models"]))
+        self.assertTrue(all("[AI Studio]" in m["name"] for m in provs["aistudio"]["models"]))
 
     def test_properties(self):
         self.assertEqual(self.configurator.name, "pi")
@@ -4580,6 +4658,18 @@ class TestGentleShellConfigurator(unittest.TestCase):
         self.assertTrue(all(i.startswith("junie/") for i in ids), ids[:3])
         self.assertIn("junie/gemini-3.7-flash", ids)
         self.assertTrue(all("[Junie]" in m["name"] for m in provs["junie"]["models"]))
+
+    def test_setup_provider_aistudio_writes_aistudio_provider(self):
+        """GentleShell --provider aistudio writes providers.aistudio with effort variants."""
+        target = self.dir_path / "models.json"
+        self.configurator.setup(config_path=target, provider="aistudio")
+        data = json.loads(target.read_text(encoding="utf-8"))
+        provs = data["providers"]
+        self.assertIn("aistudio", provs)
+        self.assertNotIn("agy", provs)
+        ids = [m["id"] for m in provs["aistudio"]["models"]]
+        self.assertIn("aistudio/gemini-4-hydrogen-xhigh", ids)
+        self.assertTrue(all(m["input"] == ["text"] for m in provs["aistudio"]["models"]))
 
     def test_properties(self):
         self.assertEqual(self.configurator.name, "gentle-shell")
@@ -5545,7 +5635,7 @@ class TestInstallScript(unittest.TestCase):
         sentinel = self.state_dir / "core" / ".agy-bridge-installed"
         self.assertTrue(sentinel.exists())
         self.assertEqual(stat.S_IMODE(sentinel.stat().st_mode), 0o600)
-        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.38.0")
+        self.assertEqual(sentinel.read_text(encoding="utf-8").strip(), "v0.39.0")
 
     def test_install_script_launcher_immune_to_cwd_hijacking(self):
         res = subprocess.run(

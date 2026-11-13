@@ -10,8 +10,10 @@ from typing import Any, cast
 from bridge.setup.availability import split_by_availability
 from bridge.setup.base import ClientConfigurator, ConfigPath, get_configurator
 from bridge.setup.common import (
+    DEFAULT_AISTUDIO_UPSTREAM_MODEL,
     DEFAULT_OPENCODE_UPSTREAM_MODEL,
     DEFAULT_JUNIE_UPSTREAM_MODEL,
+    aistudio_provider_models,
     opencode_provider_models,
     junie_provider_models,
     _strip_json_comments,
@@ -256,6 +258,19 @@ DEFAULT_JUNIE_MODELS: list[dict[str, Any]] = [
 ]
 
 
+DEFAULT_AISTUDIO_MODELS: list[dict[str, Any]] = [
+    {
+        "id": mid,
+        "name": label,
+        "reasoning": True,
+        "input": ["text"],
+        "contextWindow": 1048576,
+        "maxTokens": 65536,
+    }
+    for mid, label in aistudio_provider_models()
+]
+
+
 def _cleanup_pi_or_gentle_settings(settings_path: Path) -> None:
     """Restores settings.json from backup or surgically cleans agy provider and models."""
     settings_backups = list_backups(settings_path)
@@ -421,6 +436,15 @@ class PiConfigurator(ClientConfigurator):
                 "headers": {"User-Agent": "pi-coding-agent"},
                 "models": [dict(m) for m in DEFAULT_JUNIE_MODELS],
             }
+        if provider == "aistudio":
+            providers["aistudio"] = {
+                "name": "Google AI Studio",
+                "baseUrl": resolved_url,
+                "api": "openai-completions",
+                "apiKey": auth_token,
+                "headers": {"User-Agent": "pi-coding-agent"},
+                "models": [dict(m) for m in DEFAULT_AISTUDIO_MODELS],
+            }
         agy_models: list[dict[str, Any]] = []
         agy_skipped: list[str] = []
         if provider in ("agy", "all", "todos"):
@@ -465,6 +489,11 @@ class PiConfigurator(ClientConfigurator):
                 settings_config["defaultProvider"] = "junie"
                 settings_config["defaultModel"] = (
                     model if (model and model.startswith("junie/")) else DEFAULT_JUNIE_UPSTREAM_MODEL
+                )
+            elif provider == "aistudio":
+                settings_config["defaultProvider"] = "aistudio"
+                settings_config["defaultModel"] = (
+                    model if (model and model.startswith("aistudio/")) else DEFAULT_AISTUDIO_UPSTREAM_MODEL
                 )
             elif provider == "cursor" or (provider in ("all", "todos") and (model.startswith("cursor/") or model == "auto")):
                 settings_config["defaultProvider"] = "cursor"
@@ -706,6 +735,15 @@ class GentleShellConfigurator(ClientConfigurator):
                 "headers": {"User-Agent": "gentle-shell"},
                 "models": [dict(m) for m in DEFAULT_JUNIE_MODELS],
             }
+        elif provider == "aistudio":
+            providers["aistudio"] = {
+                "name": "Google AI Studio",
+                "baseUrl": resolved_url,
+                "api": "openai-completions",
+                "apiKey": auth_token,
+                "headers": {"User-Agent": "gentle-shell"},
+                "models": [dict(m) for m in DEFAULT_AISTUDIO_MODELS],
+            }
         elif provider in ("cursor", "all", "todos"):
             providers["cursor"] = {
                 "name": "Cursor Agent",
@@ -759,6 +797,11 @@ class GentleShellConfigurator(ClientConfigurator):
                 settings_config["defaultProvider"] = "junie"
                 settings_config["defaultModel"] = (
                     model if (model and model.startswith("junie/")) else DEFAULT_JUNIE_UPSTREAM_MODEL
+                )
+            elif provider == "aistudio":
+                settings_config["defaultProvider"] = "aistudio"
+                settings_config["defaultModel"] = (
+                    model if (model and model.startswith("aistudio/")) else DEFAULT_AISTUDIO_UPSTREAM_MODEL
                 )
             elif provider == "cursor" or (provider in ("all", "todos") and (model.startswith("cursor/") or model == "auto")):
                 settings_config["defaultProvider"] = "cursor"

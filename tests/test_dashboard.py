@@ -1062,6 +1062,7 @@ class TestDashboardBilingual(unittest.TestCase):
         self.assertIn('data-card="gentle-shell" data-provider="cursor"', html_en)
         self.assertIn('data-card="gentle-shell" data-provider="opencode"', html_en)
         self.assertIn('data-card="gentle-shell" data-provider="junie"', html_en)
+        self.assertIn('data-card="gentle-shell" data-provider="aistudio"', html_en)
         self.assertIn('data-card="gentle-shell" data-provider="all"', html_en)
         self.assertIn('data-card="gentle-shell" data-provider="freellmapi"', html_en)
 
@@ -1156,6 +1157,45 @@ class TestJunieQuotaTab(unittest.TestCase):
     def test_junie_strings_are_i18n(self):
         html = self._render()
         for key in ("junie_tab_title", "junie_status_available", "junie_status_missing", "junie_no_quota_note"):
+            self.assertIn(key, html)
+
+
+class TestAistudioQuotaTab(unittest.TestCase):
+    """AI Studio tab on the quota panel (S6): credential state, no fake bars, no secrets."""
+
+    def _render(self):
+        auth_status = {"status": "Valid", "email": "dev@example.com", "message": "Authenticated"}
+        return render_dashboard("127.0.0.1", 24980, auth_status, models_count=10)
+
+    def test_tab_button_and_card_present(self):
+        html = self._render()
+        self.assertIn('id="tab-quota-aistudio"', html)
+        self.assertIn('id="aistudio-quota-card"', html)
+        self.assertIn("/api/aistudio/status", html)
+        self.assertIn("fetchAistudioStatus", html)
+
+    def test_switch_quota_tab_supports_aistudio(self):
+        html = self._render()
+        self.assertIn('getElementById("aistudio-quota-card")', html)
+        self.assertIn("tab-quota-aistudio", html)
+        self.assertIn("aistudioBtn", html)
+
+    def test_aistudio_card_never_renders_quota_bars(self):
+        html = self._render()
+        card_start = html.index('id="aistudio-quota-card"')
+        card_end = html.index("</aside>", card_start)
+        card = html[card_start:card_end]
+        self.assertNotIn("quota-bar", card)
+        self.assertIn("aistudio-no-quota", card)
+
+    def test_aistudio_strings_are_i18n(self):
+        html = self._render()
+        for key in (
+            "aistudio_tab_title",
+            "aistudio_status_verified",
+            "aistudio_status_missing",
+            "aistudio_no_quota_note",
+        ):
             self.assertIn(key, html)
 
 

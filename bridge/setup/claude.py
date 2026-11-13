@@ -6,8 +6,10 @@ from typing import Any, cast
 
 from bridge.setup.base import ClientConfigurator, ConfigPath, get_configurator
 from bridge.setup.common import (
+    DEFAULT_AISTUDIO_UPSTREAM_MODEL,
     DEFAULT_OPENCODE_UPSTREAM_MODEL,
     DEFAULT_JUNIE_UPSTREAM_MODEL,
+    aistudio_provider_models,
     opencode_provider_models,
     junie_provider_models,
     atomic_write_file,
@@ -251,6 +253,15 @@ class ClaudeConfigurator(ClientConfigurator):
             model_options = [
                 {"model": mid, "label": label, "behavesAs": "claude-3-7-sonnet"}
                 for mid, label in junie_provider_models()
+            ]
+        elif provider == "aistudio":
+            if model and model.startswith("aistudio/"):
+                effective_model = model
+            else:
+                effective_model = DEFAULT_AISTUDIO_UPSTREAM_MODEL
+            model_options = [
+                {"model": mid, "label": label, "behavesAs": "claude-3-7-sonnet"}
+                for mid, label in aistudio_provider_models()
             ]
         else:
             model_options = [dict(opt) for opt in DEFAULT_CLAUDE_MODEL_PICKER_OPTIONS]

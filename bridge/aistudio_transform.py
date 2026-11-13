@@ -287,6 +287,7 @@ def chat_to_aistudio_request(
     *,
     cache: InteractionStepCache,
     session_id: str | None = None,
+    request_id: str | None = None,
 ) -> AistudioTransformedRequest:
     """Translates OpenAI Chat Completions payload into a stateless Interactions API request."""
     explicit_effort = _extract_explicit_effort(payload)
@@ -345,6 +346,7 @@ def chat_to_aistudio_request(
                 prefix_items=canonical_prefix,
                 assistant_visible=asst_visible,
                 session_id=session_id,
+                request_id=request_id,
             )
             input_steps.extend(copy.deepcopy(turn_rec.raw_steps))
             canonical_prefix.append(asst_visible)
@@ -407,6 +409,7 @@ def anthropic_to_aistudio_request(
     *,
     cache: InteractionStepCache,
     session_id: str | None = None,
+    request_id: str | None = None,
 ) -> AistudioTransformedRequest:
     """Translates Anthropic Messages payload into a stateless Interactions API request."""
     explicit_effort = _extract_explicit_effort(payload)
@@ -520,6 +523,7 @@ def anthropic_to_aistudio_request(
                 prefix_items=canonical_prefix,
                 assistant_visible=asst_visible,
                 session_id=session_id,
+                request_id=request_id,
             )
             input_steps.extend(copy.deepcopy(turn_rec.raw_steps))
             canonical_prefix.append(asst_visible)
@@ -564,6 +568,7 @@ def responses_to_aistudio_request(
     *,
     cache: InteractionStepCache,
     session_id: str | None = None,
+    request_id: str | None = None,
 ) -> AistudioTransformedRequest:
     """Translates OpenAI Responses payload (both previous_response_id and full-input replay)."""
     explicit_effort = _extract_explicit_effort(payload)
@@ -590,6 +595,7 @@ def responses_to_aistudio_request(
             prev_resp_id.strip(),
             official_model=official_model,
             session_id=session_id,
+            request_id=request_id,
         )
         if prev_rec.full_steps_snapshot is not None:
             input_steps = copy.deepcopy(prev_rec.full_steps_snapshot)
@@ -660,6 +666,7 @@ def responses_to_aistudio_request(
                 prefix_items=canonical_prefix,
                 assistant_visible=asst_visible,
                 session_id=session_id,
+                request_id=request_id,
             )
             input_steps.extend(copy.deepcopy(turn_rec.raw_steps))
             canonical_prefix.append(asst_visible)

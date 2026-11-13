@@ -508,6 +508,68 @@ class TestAistudioServerEndpoints(unittest.TestCase):
             srv.shutdown()
             srv.server_close()
 
+    def test_chat_anonymous_tool_roundtrip_without_session_id(self) -> None:
+        """Reproduces the real Gentle Shell flow: tool roundtrip WITHOUT x-abridge-session-id."""
+        srv, _, client, _ = self._start_server()
+        try:
+            port = srv.server_address[1]
+            # Turn 1: Gemini streams a function_call then requires_action.
+            client.next_streams.append([
+                {"event_type": "step.start", "index": 0, "step": {"type": "thought"}},
+                {"event_type": "step.delta", "index": 0, "delta": {"type": "thought_signature", "signature": "sig_anon_tool"}},
+                {"event_type": "step.stop", "index": 0},
+                {"event_type": "step.start", "index": 1, "step": {"type": "model_output", "content": []}},
+                {"event_type": "step.delta", "index": 1, "delta": {"type": "text", "text": "Let me run fn_x for you."}},
+                {"event_type": "step.stop", "index": 1},
+                {"event_type": "step.start", "index": 2, "step": {"type": "function_call", "id": "toolu_a1", "name": "fn_x", "arguments": {}}},
+                {"event_type": "step.delta", "index": 2, "delta": {"type": "arguments_delta", "arguments": '{"q":1}'}},
+                {"event_type": "step.stop", "index": 2},
+                {"event_type": "interaction.requires_action", "interaction": {"id": "int_anon_tool", "status": "requires_action"}},
+            ])
+            c1, sse1 = self._request(
+                port,
+                "POST",
+                "/v1/chat/completions",
+                {
+                    "model": "aistudio/gemini-3.8-flash-low",
+                    "stream": True,
+                    "tools": [{"type": "function", "function": {"name": "fn_x", "parameters": {"type": "object"}}}],
+                    "messages": [{"role": "user", "content": "run fn_x"}],
+                },
+            )
+            self.assertEqual(c1, 200)
+            self.assertIn("call_a1", sse1)
+
+            # Turn 2: Gentle replays history + tool result, NO session header.
+            client.next_interactions.append({
+                "id": "int_anon_done",
+                "status": "completed",
+                "steps": [{"type": "model_output", "content": [{"type": "text", "text": "Anon done"}]}],
+            })
+            c2, b2 = self._request(
+                port,
+                "POST",
+                "/v1/chat/completions",
+                {
+                    "model": "aistudio/gemini-3.8-flash-low",
+                    "tools": [{"type": "function", "function": {"name": "fn_x", "parameters": {"type": "object"}}}],
+                    "messages": [
+                        {"role": "user", "content": "run fn_x"},
+                        {
+                            "role": "assistant",
+                            "content": "Let me run fn_x for you.",
+                            "tool_calls": [{"id": "call_a1", "type": "function", "function": {"name": "fn_x", "arguments": '{"q":1}'}}],
+                        },
+                        {"role": "tool", "tool_call_id": "call_a1", "content": "res"},
+                    ],
+                },
+            )
+            self.assertEqual(c2, 200)
+            self.assertEqual(b2["choices"][0]["message"]["content"], "Anon done")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
 
 if __name__ == "__main__":
     unittest.main()

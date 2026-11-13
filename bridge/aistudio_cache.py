@@ -21,6 +21,7 @@ from typing import Any
 import uuid
 
 from bridge.errors import InteractionStateError
+from bridge.aistudio_diag import diag_log
 
 DEFAULT_CACHE_TTL_SECONDS = 1800.0  # 30 minutes
 DEFAULT_MAX_SESSIONS = 256
@@ -247,6 +248,7 @@ class InteractionStepCache:
         prefix_items: list[dict[str, Any]],
         assistant_visible: dict[str, Any],
         session_id: str | None = None,
+        request_id: str | None = None,
     ) -> AistudioTurnRecord:
         """Resolves a prior assistant turn back to its unmodified raw Google steps."""
         now = self._clock()
@@ -280,12 +282,34 @@ class InteractionStepCache:
                 chosen.last_accessed_at = now
                 bucket.last_accessed_at = now
                 self._sessions.move_to_end(session_key)
+                diag_log(
+                    event="aistudio.resolved",
+                    request_id=request_id,
+                    protocol=protocol,
+                    model=official_model,
+                    has_session_id=True,
+                    prefix_h=prefix_h,
+                    asst_h=asst_h,
+                    turn_id=chosen.turn_id,
+                )
                 return self._clone_record(chosen)
 
             # Global fallback (no explicit session_id header)
             candidates = self._fingerprint_index.get(fingerprint, [])
             active_candidates = [c for c in candidates if (now - c.last_accessed_at) <= self.ttl_seconds]
             if not active_candidates:
+                diag_log(
+                    event="aistudio.resolve_no_candidates",
+                    request_id=request_id,
+                    protocol=protocol,
+                    model=official_model,
+                    has_session_id=False,
+                    prefix_h=prefix_h,
+                    asst_h=asst_h,
+                    num_total=len(candidates),
+                    num_active=0,
+                    ttl_seconds=self.ttl_seconds,
+                )
                 raise InteractionStateError(
                     "AI Studio continuity state is missing or expired. Start a new conversation.",
                     code="interaction_state_missing",
@@ -293,6 +317,17 @@ class InteractionStepCache:
 
             distinct_hashes = {c.raw_steps_hash for c in active_candidates}
             if len(distinct_hashes) > 1:
+                diag_log(
+                    event="aistudio.resolve_ambiguous",
+                    request_id=request_id,
+                    protocol=protocol,
+                    model=official_model,
+                    has_session_id=False,
+                    prefix_h=prefix_h,
+                    asst_h=asst_h,
+                    num_total=len(candidates),
+                    num_active=len(active_candidates),
+                )
                 raise InteractionStateError(
                     "Ambiguous AI Studio conversation history detected across concurrent sessions; "
                     "pass header 'x-abridge-session-id' or start a new conversation.",
@@ -305,6 +340,16 @@ class InteractionStepCache:
             if bucket is not None:
                 bucket.last_accessed_at = now
                 self._sessions.move_to_end(chosen.session_key)
+            diag_log(
+                event="aistudio.resolved",
+                request_id=request_id,
+                protocol=protocol,
+                model=official_model,
+                has_session_id=False,
+                prefix_h=prefix_h,
+                asst_h=asst_h,
+                turn_id=chosen.turn_id,
+            )
             return self._clone_record(chosen)
 
     def resolve_response_id(
@@ -312,6 +357,7 @@ class InteractionStepCache:
         previous_response_id: str,
         official_model: str,
         session_id: str | None = None,
+        request_id: str | None = None,
     ) -> AistudioTurnRecord:
         """Resolves an Abridge-generated Responses `previous_response_id` locally."""
         now = self._clock()
@@ -319,6 +365,13 @@ class InteractionStepCache:
             self._prune_locked(now)
             rec = self._response_index.get(previous_response_id)
             if rec is None:
+                diag_log(
+                    event="aistudio.resolve_response_missing",
+                    request_id=request_id,
+                    protocol=rec.protocol if rec is not None else None,
+                    model=official_model,
+                    has_session_id=session_id is not None,
+                )
                 raise InteractionStateError(
                     f"AI Studio state for previous_response_id '{previous_response_id}' is missing or expired. "
                     "Start a new conversation.",

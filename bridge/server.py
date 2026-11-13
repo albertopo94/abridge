@@ -78,13 +78,15 @@ from bridge.aistudio_backend import (
     AistudioStepAssembler,
     is_aistudio_model,
 )
-from bridge.aistudio_cache import InteractionStepCache
+from bridge.aistudio_cache import InteractionStepCache, canonical_hash
 from bridge.aistudio_client import AistudioStreamMetrics
 from bridge.aistudio_transform import (
     anthropic_to_aistudio_request,
     chat_to_aistudio_request,
     responses_to_aistudio_request,
 )
+from bridge.aistudio_diag import diag_log
+
 import copy
 
 SAFE_REQUEST_ID_REGEX = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
@@ -851,6 +853,19 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
         self._ensure_request_id()
         session_id = self._get_aistudio_session_id()
         cache = self._get_aistudio_cache()
+        _hist = payload.get("messages") if protocol != "openai_responses" else payload.get("input")
+        _hist_list = _hist if isinstance(_hist, list) else []
+        diag_log(
+            event="aistudio.request",
+            request_id=self.request_id,
+            protocol=protocol,
+            model=model_label,
+            stream=bool(payload.get("stream", False)),
+            has_session_id=session_id is not None,
+            num_messages=len(_hist_list),
+            roles=" ".join(str(m.get("role") or m.get("type") or "?") for m in _hist_list if isinstance(m, dict)),
+            num_tools=len(payload.get("tools") or []),
+        )
         prev_resp_id = payload.get("previous_response_id") if protocol == "openai_responses" else None
         if session_id:
             lock_key = f"sid:{protocol}:{session_id}"
@@ -865,7 +880,19 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                 return
             with lock_ctx:
                 try:
-                    req = transform_fn(payload, cache=cache, session_id=session_id)
+                    req = transform_fn(payload, cache=cache, session_id=session_id, request_id=self.request_id)
+                except InteractionStateError as ise:
+                    diag_log(
+                        event="aistudio.resolve_failed",
+                        request_id=self.request_id,
+                        protocol=protocol,
+                        model=model_label,
+                        has_session_id=session_id is not None,
+                        error_code=ise.code if hasattr(ise, "code") else "interaction_state_error",
+                        reason=str(ise),
+                    )
+                    error_sender(ise)
+                    return
                 except ValueError as ve:
                     error_sender(InvalidRequestError(str(ve)))
                     return
@@ -940,7 +967,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                         )
                         resp_obj = response_builder(collected)
                         asst_visible = {"text": collected.text, "tool_calls": visible_tool_calls}
-                        cache.record_turn(
+                        recorded = cache.record_turn(
                             protocol=protocol,
                             official_model=req.official_model,
                             prefix_items=req.prefix_items,
@@ -952,6 +979,20 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                             full_steps_snapshot=list(req.payload.get("input", [])) + raw_steps,
                             canonical_history=list(req.canonical_history) + [asst_visible],
                             request_hash=req.request_hash,
+                        )
+                        diag_log(
+                            event="aistudio.committed",
+                            request_id=self.request_id,
+                            protocol=protocol,
+                            model=req.official_model,
+                            stream=False,
+                            status=status,
+                            num_raw_steps=len(raw_steps),
+                            has_session_id=session_id is not None,
+                            num_tool_calls=len(visible_tool_calls),
+                            prefix_h=canonical_hash(req.prefix_items),
+                            asst_h=canonical_hash(asst_visible),
+                            turn_id=recorded.turn_id,
                         )
                         self._send_json(200, resp_obj)
                     except (BrokenPipeError, ConnectionResetError):
@@ -1053,7 +1094,7 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                 if stream_ok and assembler.terminal_reached and assembler.final_status in ("completed", "requires_action"):
                     raw_steps = assembler.raw_steps
                     asst_visible = {"text": "".join(text_parts), "tool_calls": visible_tool_calls}
-                    cache.record_turn(
+                    recorded = cache.record_turn(
                         protocol=protocol,
                         official_model=req.official_model,
                         prefix_items=req.prefix_items,
@@ -1065,6 +1106,31 @@ class OpenAIRequestHandler(http.server.BaseHTTPRequestHandler):
                         full_steps_snapshot=list(req.payload.get("input", [])) + raw_steps,
                         canonical_history=list(req.canonical_history) + [asst_visible],
                         request_hash=req.request_hash,
+                    )
+                    diag_log(
+                        event="aistudio.committed",
+                        request_id=self.request_id,
+                        protocol=protocol,
+                        model=req.official_model,
+                        stream=True,
+                        status=assembler.final_status,
+                        num_raw_steps=len(raw_steps),
+                        has_session_id=session_id is not None,
+                        num_tool_calls=len(visible_tool_calls),
+                        prefix_h=canonical_hash(req.prefix_items),
+                        asst_h=canonical_hash(asst_visible),
+                        turn_id=recorded.turn_id,
+                    )
+                else:
+                    diag_log(
+                        event="aistudio.not_committed",
+                        request_id=self.request_id,
+                        protocol=protocol,
+                        model=req.official_model,
+                        stream_ok=stream_ok,
+                        terminal_reached=bool(getattr(assembler, "terminal_reached", False)),
+                        final_status=getattr(assembler, "final_status", None),
+                        has_session_id=session_id is not None,
                     )
 
     def _handle_aistudio_chat_completion(self, payload: dict[str, Any]) -> None:
